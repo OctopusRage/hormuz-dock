@@ -102,17 +102,25 @@ function projectCard(p) {
     </div>
     <div class="containers" data-containers></div>
     <div class="actions">
-      <button class="sm" data-act="start">Start</button>
-      <button class="sm ghost" data-act="stop">Stop</button>
+      ${p.status === 'stopped'
+        ? '<button class="sm primary" data-act="start">▶ Start</button>'
+        : '<button class="sm ghost" data-act="stop">■ Stop</button>'}
       <button class="sm ghost" data-act="restart">Restart</button>
-      <button class="sm ghost" data-act="env">Env</button>
-      <button class="sm ghost" data-act="routes">Routes</button>
-      <button class="sm ghost" data-act="branch">Branch</button>
-      <button class="sm ghost" data-act="shell">Shell</button>
       <button class="sm ghost" data-act="logs">Logs</button>
-      <button class="sm ghost" data-act="rebuild">Rebuild</button>
-      <button class="sm ghost" data-act="redeploy" title="git pull + docker compose up -d --build">Pull &amp; Rebuild</button>
-      <button class="sm danger" data-act="delete">Delete</button>
+      <button class="sm ghost" data-act="shell">Shell</button>
+      <div class="menu-wrap">
+        <button class="sm ghost menu-btn" data-menu aria-label="More actions">⋯</button>
+        <div class="menu" hidden>
+          <button data-act="env">Environment</button>
+          <button data-act="routes">Proxy routes</button>
+          <button data-act="branch">Switch branch</button>
+          <div class="menu-sep"></div>
+          <button data-act="rebuild">Rebuild image</button>
+          <button data-act="redeploy">Pull &amp; Rebuild</button>
+          <div class="menu-sep"></div>
+          <button data-act="delete" class="danger-item">Delete project</button>
+        </div>
+      </div>
     </div>
     <div class="msg" data-msg></div>
   </div>`;
@@ -185,10 +193,22 @@ async function updateProjectStats(p) {
     : `<div class="ctr" style="color:var(--muted)">No running containers</div>`;
 }
 
+// ---------- Overflow menu (⋯) on project cards ----------
+document.addEventListener('click', (e) => {
+  const menuBtn = e.target.closest('[data-menu]');
+  const openMenu = menuBtn ? menuBtn.parentElement.querySelector('.menu') : null;
+  // Close every menu except the one we're toggling open.
+  $$('.menu').forEach((m) => { if (m !== openMenu) m.hidden = true; });
+  if (menuBtn) openMenu.hidden = !openMenu.hidden;
+});
+
 // ---------- Actions ----------
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-act]');
   if (!btn) return;
+  // A menu item was chosen — collapse the menu it lives in.
+  const inMenu = btn.closest('.menu');
+  if (inMenu) inMenu.hidden = true;
   const card = btn.closest('.project');
   const id = card.dataset.id;
   const project = projects.find((p) => p.id === id);
