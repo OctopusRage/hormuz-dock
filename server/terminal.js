@@ -99,8 +99,8 @@ export function setupTerminal() {
       logAction({
         user: ws._user,
         action: 'Open shell',
-        target: project.id,
-        detail: `${project.name} / ${match.service}`,
+        target: project.name,
+        detail: match.service,
         status: 200,
       });
       ws.send('\r\n\x1b[32mConnected to ' + match.service + '.\x1b[0m\r\n');

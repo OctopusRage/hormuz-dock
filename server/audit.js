@@ -1,4 +1,6 @@
 import { db } from './db.js';
+import * as store from './store.js';
+import { getUserById } from './auth.js';
 
 /** Insert an audit-log entry. */
 export function logAction({ user, action, target, detail, status }) {
@@ -25,7 +27,7 @@ export function readLog({ userId = null, limit = 200 } = {}) {
   return db.prepare('SELECT * FROM audit_log ORDER BY id DESC LIMIT ?').all(limit);
 }
 
-// Map a mutating API request to a human-readable action label.
+// Map a mutating API request to a human-readable action + the entity it targets.
 function describe(req) {
   const url = req.baseUrl + req.path; // e.g. /api/projects/<id>/start
   const m = url.match(/^\/api\/projects\/([^/]+)(?:\/(\w+))?/);
@@ -42,29 +44,46 @@ function describe(req) {
       env: 'Update env',
       routes: 'Update routes',
     };
-    if (!sub && req.method === 'POST') return { action: 'Create project', target: null };
-    if (!sub && req.method === 'DELETE') return { action: 'Delete project', target: m[1] };
-    return { action: labels[sub] || `${req.method} ${sub}`, target: m[1] };
+    if (!sub && req.method === 'POST') return { action: 'Create project', kind: 'project-create' };
+    if (!sub && req.method === 'DELETE') return { action: 'Delete project', kind: 'project', id: m[1] };
+    return { action: labels[sub] || `${req.method} ${sub}`, kind: 'project', id: m[1] };
   }
   if (url.startsWith('/api/users')) {
-    if (req.method === 'POST') return { action: 'Create user', target: null };
-    if (req.method === 'DELETE') return { action: 'Delete user', target: req.params.id };
-    return { action: 'Manage users', target: null };
+    if (req.method === 'POST' && !/\/password$/.test(url)) return { action: 'Create user', kind: 'user-create' };
+    if (req.method === 'POST') return { action: 'Reset password', kind: 'user', id: req.params.id };
+    if (req.method === 'DELETE') return { action: 'Delete user', kind: 'user', id: req.params.id };
+    return { action: 'Manage users', kind: null };
   }
-  return { action: `${req.method} ${url}`, target: null };
+  return { action: `${req.method} ${url}`, kind: null };
+}
+
+// Resolve a friendly target label (project/user name) at request time — before
+// the handler runs, so deletes still capture the name.
+function resolveTarget(req, info) {
+  if (info.kind === 'project' && info.id) {
+    const p = store.getProject(info.id);
+    return p ? p.name : info.id;
+  }
+  if (info.kind === 'project-create') return req.body?.name || null;
+  if (info.kind === 'user' && info.id) {
+    const u = getUserById(parseInt(info.id));
+    return u ? u.username : info.id;
+  }
+  if (info.kind === 'user-create') return req.body?.username || null;
+  return null;
 }
 
 /**
  * Middleware that records every mutating (non-GET) API request after the
- * response finishes, capturing who did what and the resulting status code.
+ * response finishes, capturing who did what (with readable names) and status.
  */
 export function auditMiddleware(req, res, next) {
   if (req.method === 'GET' || req.method === 'HEAD') return next();
+  const info = describe(req);
+  const target = resolveTarget(req, info); // capture now (entity may be deleted by handler)
   res.on('finish', () => {
-    // Skip auth endpoints here; login/logout are logged explicitly with detail.
     if (req.originalUrl.startsWith('/api/auth')) return;
-    const { action, target } = describe(req);
-    logAction({ user: req.user, action, target, status: res.statusCode });
+    logAction({ user: req.user, action: info.action, target, status: res.statusCode });
   });
   next();
 }
