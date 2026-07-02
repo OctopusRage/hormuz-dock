@@ -1,0 +1,20 @@
+{
+  "name": "apphub",
+  "version": "1.0.0",
+  "description": "Web UI to manage multiple Docker Compose projects on a server",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dockerode": "^5.0.1",
+    "express": "^4.19.2",
+    "http-proxy": "^1.18.1",
+    "ws": "^8.21.0"
+  }
+}

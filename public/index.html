@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AppHub — Docker Compose Manager</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">⚓</span>
+        <div>
+          <h1>AppHub</h1>
+          <p class="tagline">Manage your Docker Compose projects</p>
+        </div>
+      </div>
+      <div id="system" class="system"></div>
+    </header>
+
+    <main>
+      <section class="new-project card">
+        <h2>+ New Project</h2>
+        <form id="new-form">
+          <div class="row">
+            <input id="f-name" placeholder="Project name (e.g. My API)" required />
+            <input id="f-git" placeholder="Git URL (bitbucket / github …)" required />
+            <input id="f-branch" placeholder="Branch (optional)" />
+            <button type="submit" id="create-btn">Clone &amp; Add</button>
+          </div>
+          <p class="hint">
+            The repo will be cloned and must contain a <code>docker-compose.yml</code>.
+          </p>
+        </form>
+        <div id="new-msg" class="msg"></div>
+      </section>
+
+      <section class="projects">
+        <div class="projects-head">
+          <h2>Projects</h2>
+          <label class="auto">
+            <input type="checkbox" id="auto-refresh" checked /> Auto-refresh stats
+          </label>
+        </div>
+        <div id="projects" class="project-grid"></div>
+        <div id="empty" class="empty" hidden>No projects yet. Add one above ☝️</div>
+      </section>
+    </main>
+
+    <!-- Env editor modal -->
+    <div id="env-modal" class="modal" hidden>
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3>Environment — <span id="env-title"></span></h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <div class="tabs">
+          <button class="tab active" data-tab="table">Form</button>
+          <button class="tab" data-tab="raw">Raw .env</button>
+        </div>
+        <div id="env-table" class="tab-panel">
+          <div id="env-rows"></div>
+          <button id="env-add" class="ghost">+ Add variable</button>
+        </div>
+        <div id="env-raw" class="tab-panel" hidden>
+          <textarea id="env-textarea" spellcheck="false" placeholder="KEY=value"></textarea>
+        </div>
+        <div class="modal-foot">
+          <span id="env-msg" class="msg"></span>
+          <button id="env-save" class="primary">Save .env</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Routes (reverse proxy) modal -->
+    <div id="routes-modal" class="modal" hidden>
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3>Proxy routes — <span id="routes-title"></span></h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <div class="tab-panel">
+          <p class="hint" style="margin-top:0">
+            Every route is served under <code>/_</code>. Type just a name
+            (letters, numbers, hyphens) and the target port. e.g. name
+            <code>chat</code> + port <code>9999</code> makes
+            <code>&lt;this-host&gt;/_chat</code> serve your app on 9999
+            (WebSockets included).
+          </p>
+          <div id="routes-rows"></div>
+          <button id="routes-add" class="ghost">+ Add route</button>
+        </div>
+        <div class="modal-foot">
+          <span id="routes-msg" class="msg"></span>
+          <button id="routes-save" class="primary">Save routes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Branch switcher modal -->
+    <div id="branch-modal" class="modal" hidden>
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3>Switch branch — <span id="branch-title"></span></h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <div class="tab-panel">
+          <p class="hint" style="margin-top:0">
+            Current branch: <b id="branch-current">…</b>
+          </p>
+          <label class="field-label">Branch</label>
+          <select id="branch-select"></select>
+          <div class="or">or type a branch name</div>
+          <input id="branch-input" placeholder="feature/xyz" />
+          <label class="check">
+            <input type="checkbox" id="branch-rebuild" checked />
+            Rebuild &amp; recreate containers after switching
+          </label>
+        </div>
+        <div class="modal-foot">
+          <span id="branch-msg" class="msg"></span>
+          <button id="branch-switch" class="primary">Switch branch</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logs modal -->
+    <div id="logs-modal" class="modal" hidden>
+      <div class="modal-box wide">
+        <div class="modal-head">
+          <h3>Logs — <span id="logs-title"></span></h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <pre id="logs-content" class="logs"></pre>
+        <div class="modal-foot">
+          <button id="logs-refresh" class="ghost">Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shell / terminal modal -->
+    <div id="shell-modal" class="modal" hidden>
+      <div class="modal-box wide">
+        <div class="modal-head">
+          <h3>Shell — <span id="shell-title"></span></h3>
+          <div class="shell-controls">
+            <select id="shell-container" title="Container"></select>
+            <button id="shell-connect" class="sm">Connect</button>
+            <button class="close" data-close>&times;</button>
+          </div>
+        </div>
+        <div id="terminal" class="terminal"></div>
+        <div class="modal-foot">
+          <span id="shell-status" class="msg"></span>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
