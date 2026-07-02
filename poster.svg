@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1400" width="1000" height="1400" font-family="Inter, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4c8dff"/>
+      <stop offset="1" stop-color="#34d5c5"/>
+      <animateTransform attributeName="gradientTransform" type="rotate" from="0 .5 .5" to="360 .5 .5" dur="16s" repeatCount="indefinite"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1420"/>
+      <stop offset="1" stop-color="#080b12"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#4c8dff" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#4c8dff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#34d5c5" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#34d5c5" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="26" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+
+    <style>
+      .float   { animation: float 5s ease-in-out infinite; }
+      .breathe { animation: breathe 7s ease-in-out infinite; }
+      .breathe2{ animation: breathe 9s ease-in-out infinite 1s; }
+      .pulse   { animation: pulse 1.6s ease-in-out infinite; }
+      .rise    { animation: rise 0.9s cubic-bezier(.2,.7,.2,1) backwards; }
+      .d1{ animation-delay:.10s } .d2{ animation-delay:.20s } .d3{ animation-delay:.30s }
+      .d4{ animation-delay:.40s } .d5{ animation-delay:.50s } .d6{ animation-delay:.60s }
+      .cpu     { transform-box: fill-box; transform-origin: left center; animation: cpu 3.4s ease-in-out infinite; }
+      .ctaglow { animation: ctaglow 2.4s ease-in-out infinite; }
+      .drift   { animation: drift 12s linear infinite; }
+      .drift2  { animation: drift 15s linear infinite 3s; }
+      .drift3  { animation: drift 18s linear infinite 6s; }
+      @keyframes float   { 0%,100%{ transform: translateY(0) } 50%{ transform: translateY(-12px) } }
+      @keyframes breathe { 0%,100%{ opacity:.6; transform: scale(1) } 50%{ opacity:1; transform: scale(1.08) } }
+      @keyframes pulse   { 0%,100%{ opacity:1 } 50%{ opacity:.25 } }
+      @keyframes rise    { to { opacity:1; transform: translateY(0) } from { opacity:0; transform: translateY(22px) } }
+      @keyframes grow    { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+      @keyframes cpu     { 0%,100%{ transform: scaleX(.5) } 50%{ transform: scaleX(1) } }
+      @keyframes ctaglow { 0%,100%{ filter: drop-shadow(0 0 6px rgba(76,141,255,.5)) } 50%{ filter: drop-shadow(0 0 22px rgba(52,213,197,.75)) } }
+      @keyframes drift   { 0%{ transform: translateY(0); opacity:0 } 12%{ opacity:.5 } 88%{ opacity:.5 } 100%{ transform: translateY(-320px); opacity:0 } }
+    </style>
+  </defs>
+
+  <!-- background -->
+  <rect width="1000" height="1400" fill="url(#bg)"/>
+  <rect x="12" y="12" width="976" height="1376" rx="28" fill="none" stroke="url(#brand)" stroke-opacity="0.5" stroke-width="2"/>
+  <circle class="breathe"  cx="760" cy="150"  r="360" fill="url(#glowA)"/>
+  <circle class="breathe2" cx="220" cy="120"  r="320" fill="url(#glowB)"/>
+  <circle class="breathe2" cx="880" cy="1160" r="300" fill="url(#glowA)"/>
+
+  <!-- drifting containers -->
+  <g opacity="0.5">
+    <rect class="drift"  x="120" y="1260" width="70" height="46" rx="7" fill="#1a2434" stroke="#4c8dff" stroke-opacity=".5"/>
+    <rect class="drift2" x="820" y="1290" width="64" height="42" rx="7" fill="#1a2434" stroke="#34d5c5" stroke-opacity=".5"/>
+    <rect class="drift3" x="470" y="1320" width="58" height="40" rx="7" fill="#1a2434" stroke="#8b5cf6" stroke-opacity=".5"/>
+    <rect class="drift2" x="300" y="1350" width="52" height="36" rx="7" fill="#1a2434" stroke="#f0a92b" stroke-opacity=".5"/>
+  </g>
+
+  <!-- header -->
+  <g class="float">
+    <rect x="440" y="86" width="120" height="120" rx="30" fill="url(#brand)" filter="url(#cardShadow)"/>
+    <text x="500" y="176" font-size="66" text-anchor="middle">⚓</text>
+  </g>
+  <text x="500" y="300" font-size="76" font-weight="800" letter-spacing="-2" text-anchor="middle" fill="url(#brand)">Hormuz Dock</text>
+  <text x="500" y="346" font-size="25" text-anchor="middle" fill="#9fb0c8">Run all your Docker&#160;Compose apps from one dashboard</text>
+
+  <!-- hero dashboard mock -->
+  <g class="rise d1">
+    <rect x="150" y="404" width="700" height="256" rx="22" fill="#121a27" stroke="#26334a" stroke-opacity=".8" filter="url(#cardShadow)"/>
+    <text x="184" y="452" font-size="26" font-weight="700" fill="#e8eef7">yoho</text>
+    <!-- running badge -->
+    <rect x="672" y="430" width="146" height="30" rx="15" fill="#35c26a" fill-opacity="0.16"/>
+    <circle class="pulse" cx="692" cy="445" r="5" fill="#35c26a"/>
+    <text x="706" y="450" font-size="14" font-weight="700" letter-spacing="1" fill="#35c26a">RUNNING</text>
+
+    <!-- memory bar -->
+    <text x="184" y="506" font-size="15" fill="#8493aa">Memory</text>
+    <rect x="184" y="516" width="632" height="24" rx="8" fill="#1a2434"/>
+    <g>
+      <rect class="growbar" x="184" y="516" width="150" height="24" rx="4" fill="#3b6fd4"/>
+      <rect class="growbar" x="336" y="516" width="96"  height="24" rx="4" fill="#2ea86a"/>
+      <rect class="growbar" x="434" y="516" width="60"  height="24" rx="4" fill="#d9922b"/>
+    </g>
+    <text x="192" y="533" font-size="12" font-weight="700" fill="#ffffff">api · 3.0 GB</text>
+    <text x="344" y="533" font-size="12" font-weight="700" fill="#ffffff">db · 1.9 GB</text>
+    <text x="640" y="533" font-size="12" font-weight="700" fill="#8493aa">Free · 4.1 GB</text>
+
+    <!-- cpu meter -->
+    <text x="184" y="586" font-size="15" fill="#8493aa">CPU</text>
+    <rect x="184" y="596" width="632" height="12" rx="6" fill="#1a2434"/>
+    <rect class="cpu" x="184" y="596" width="430" height="12" rx="6" fill="url(#brand)"/>
+  </g>
+
+  <!-- feature grid -->
+  <!-- row 1 -->
+  <g class="rise d1">
+    <rect x="150" y="712" width="340" height="70" rx="14" fill="#121a27" stroke="#26334a" stroke-opacity=".7"/>
+    <text x="182" y="758" font-size="30">🐙</text>
+    <text x="228" y="746" font-size="19" font-weight="700" fill="#e8eef7">Deploy from Git</text>
+    <text x="228" y="768" font-size="14" fill="#8493aa">Drop a Bitbucket / GitHub URL</text>
+  </g>
+  <g class="rise d2">
+    <rect x="510" y="712" width="340" height="70" rx="14" fill="#121a27" stroke="#26334a" stroke-opacity=".7"/>
+    <text x="542" y="758" font-size="30">▶️</text>
+    <text x="588" y="746" font-size="19" font-weight="700" fill="#e8eef7">Full lifecycle</text>
+    <text x="588" y="768" font-size="14" fill="#8493aa">Start · Stop · Restart · Rebuild</text>
+  </g>
+  <!-- row 2 -->
+  <g class="rise d3">
+    <rect x="150" y="800" width="340" height="70" rx="14" fill="#121a27" stroke="#26334a" stroke-opacity=".7"/>
+    <text x="182" y="846" font-size="30">📊</text>
+    <text x="228" y="834" font-size="19" font-weight="700" fill="#e8eef7">Live monitoring</text>
+    <text x="228" y="856" font-size="14" fill="#8493aa">CPU &amp; memory, per app</text>
+  </g>
+  <g class="rise d4">
+    <rect x="510" y="800" width="340" height="70" rx="14" fill="#121a27" stroke="#26334a" stroke-opacity=".7"/>
+    <text x="542" y="846" font-size="30">🔀</text>
+    <text x="588" y="834" font-size="19" font-weight="700" fill="#e8eef7">Reverse proxy</text>
+    <text x="588" y="856" font-size="14" fill="#8493aa">Serve apps at /_name</text>
+  </g>
+  <!-- row 3 -->
+  <g class="rise d5">
+    <rect x="150" y="888" width="340" height="70" rx="14" fill="#121a27" stroke="#26334a" stroke-opacity=".7"/>
+    <text x="182" y="934" font-size="30">🖥️</text>
+    <text x="228" y="922" font-size="19" font-weight="700" fill="#e8eef7">Web terminal</text>
+    <text x="228" y="944" font-size="14" fill="#8493aa">Shell into any container</text>
+  </g>
+  <g class="rise d6">
+    <rect x="510" y="888" width="340" height="70" rx="14" fill="#121a27" stroke="#26334a" stroke-opacity=".7"/>
+    <text x="542" y="934" font-size="30">🔐</text>
+    <text x="588" y="922" font-size="19" font-weight="700" fill="#e8eef7">Auth &amp; audit</text>
+    <text x="588" y="944" font-size="14" fill="#8493aa">Roles + full audit log</text>
+  </g>
+
+  <!-- CTA -->
+  <g class="rise d5">
+    <g class="ctaglow">
+      <rect x="330" y="1012" width="340" height="72" rx="36" fill="url(#brand)"/>
+    </g>
+    <text x="500" y="1058" font-size="26" font-weight="800" text-anchor="middle" fill="#08111c">Deploy in seconds  →</text>
+  </g>
+
+  <!-- footer -->
+  <text x="500" y="1150" font-size="20" font-weight="700" text-anchor="middle" fill="#4c8dff">github.com/OctopusRage/hormuz-dock</text>
+  <text x="500" y="1182" font-size="15" text-anchor="middle" fill="#8493aa">Self-hosted · one dashboard for every Docker Compose stack</text>
+</svg>

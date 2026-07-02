@@ -1,7 +1,11 @@
-# AppHub
+<p align="center">
+  <img src="poster.svg" alt="Hormuz Dock — run all your Docker Compose apps from one dashboard" width="620">
+</p>
+
+# Hormuz Dock
 
 A lightweight web app to manage multiple **Docker Compose** projects on a single server.
-Drop in a git link, AppHub clones it, finds the compose file, and gives you a GUI to
+Drop in a git link, Hormuz Dock clones it, finds the compose file, and gives you a GUI to
 edit env vars, start/stop the stack, and watch resource usage.
 
 ## Features
@@ -61,7 +65,7 @@ Change the port with `PORT=8080 npm start`.
 
 ## Security note
 
-AppHub runs Docker and git commands on the host. It has **no authentication** —
+Hormuz Dock runs Docker and git commands on the host. It has **no authentication** —
 run it only on a trusted/internal network, behind a reverse proxy with auth, or
 bind it to localhost and access via SSH tunnel. Anyone who can reach the port can
 start/stop containers and edit env files.
