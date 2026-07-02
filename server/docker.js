@@ -1,13 +1,22 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { run } from './exec.js';
+import { OVERRIDE_FILE } from './config.js';
+
+export function overridePath(project) {
+  return path.join(project.dir, OVERRIDE_FILE);
+}
 
 /**
  * Build the base `docker compose` argument list for a project. We pin the
  * project name (-p) so containers are consistently labeled, and point at the
- * detected compose file explicitly.
+ * detected compose file explicitly. If an override file exists, it is layered
+ * on top (Compose merges later -f files over earlier ones).
  */
 function baseArgs(project) {
   const args = ['compose', '-p', project.slug];
   if (project.composeFile) args.push('-f', project.composeFile);
+  if (fs.existsSync(overridePath(project))) args.push('-f', OVERRIDE_FILE);
   return args;
 }
 
@@ -16,6 +25,17 @@ function compose(project, extra, opts = {}) {
     cwd: project.dir,
     timeout: opts.timeout || 10 * 60 * 1000,
   });
+}
+
+/**
+ * Validate the merged compose config (base + override) via `docker compose
+ * config`. Returns { ok, error } without changing anything.
+ */
+export async function validateConfig(project) {
+  const res = await compose(project, ['config', '-q'], { timeout: 30 * 1000 });
+  return res.code === 0
+    ? { ok: true }
+    : { ok: false, error: (res.stderr || res.stdout).trim() };
 }
 
 export async function up(project, { build = false } = {}) {

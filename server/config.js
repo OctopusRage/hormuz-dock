@@ -17,3 +17,6 @@ export const COMPOSE_FILES = [
   'compose.yml',
   'compose.yaml',
 ];
+
+// GUI-editable override layer merged on top of the repo's compose file.
+export const OVERRIDE_FILE = 'docker-compose.override.yml';

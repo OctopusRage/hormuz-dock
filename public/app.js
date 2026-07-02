@@ -112,6 +112,7 @@ function projectCard(p) {
         <button class="sm ghost menu-btn" data-menu aria-label="More actions">⋯</button>
         <div class="menu" hidden>
           <button data-act="env">Environment</button>
+          <button data-act="compose">Compose override</button>
           <button data-act="routes">Proxy routes</button>
           <button data-act="branch">Switch branch</button>
           <div class="menu-sep"></div>
@@ -216,6 +217,7 @@ document.addEventListener('click', async (e) => {
   const msg = $('[data-msg]', card);
 
   if (act === 'env') return openEnv(project);
+  if (act === 'compose') return openCompose(project);
   if (act === 'routes') return openRoutes(project);
   if (act === 'branch') return openBranch(project);
   if (act === 'shell') return openShell(project);
@@ -308,9 +310,9 @@ $('#env-rows').addEventListener('click', (e) => {
   if (e.target.closest('[data-del]')) e.target.closest('.env-row').remove();
 });
 
-$$('.tab').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+$$('.tab[data-tab]').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.tab)));
 function switchTab(name) {
-  $$('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+  $$('.tab[data-tab]').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
   $('#env-table').hidden = name !== 'table';
   $('#env-raw').hidden = name !== 'raw';
   // sync form -> raw when switching to raw
@@ -345,6 +347,54 @@ $('#env-save').addEventListener('click', async () => {
   } catch (err) {
     msg.className = 'msg err';
     msg.textContent = err.message;
+  }
+});
+
+// ---------- Compose override modal ----------
+let composeProject = null;
+async function openCompose(project) {
+  composeProject = project;
+  $('#compose-title').textContent = project.name;
+  $('#compose-msg').textContent = '';
+  $('#compose-modal').hidden = false;
+  switchCTab('override');
+  $('#compose-textarea').value = 'Loading…';
+  try {
+    const d = await api.get(`/api/projects/${project.id}/compose`);
+    $('#compose-textarea').value = d.override || '';
+    $('#compose-base-textarea').value = d.base || '(compose file not found)';
+    $('#compose-base .hint').textContent = `Original ${d.file} from the repo (read-only).`;
+  } catch (e) {
+    $('#compose-textarea').value = '';
+    $('#compose-msg').className = 'msg err';
+    $('#compose-msg').textContent = e.message;
+  }
+}
+
+$$('.tab[data-ctab]').forEach((t) =>
+  t.addEventListener('click', () => switchCTab(t.dataset.ctab))
+);
+function switchCTab(name) {
+  $$('.tab[data-ctab]').forEach((t) => t.classList.toggle('active', t.dataset.ctab === name));
+  $('#compose-override').hidden = name !== 'override';
+  $('#compose-base').hidden = name !== 'base';
+}
+
+$('#compose-save').addEventListener('click', async () => {
+  const msg = $('#compose-msg');
+  msg.className = 'msg';
+  msg.textContent = 'Validating & saving…';
+  try {
+    const r = await api.send('PUT', `/api/projects/${composeProject.id}/compose`, {
+      override: $('#compose-textarea').value,
+    });
+    msg.className = 'msg ok';
+    msg.textContent = r.overrideExists
+      ? 'Saved & valid. Restart/rebuild to apply.'
+      : 'Override removed.';
+  } catch (e) {
+    msg.className = 'msg err';
+    msg.textContent = e.message;
   }
 });
 

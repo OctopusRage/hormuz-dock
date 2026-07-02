@@ -1,5 +1,6 @@
 import express from 'express';
 import fs from 'node:fs';
+import path from 'node:path';
 import * as store from '../store.js';
 import * as git from '../git.js';
 import * as docker from '../docker.js';
@@ -286,6 +287,61 @@ router.get(
     const service = req.query.service || null;
     const tail = Math.min(parseInt(req.query.tail) || 200, 2000);
     res.json({ logs: await docker.logs(p, service, tail) });
+  })
+);
+
+// Compose: read the repo's base compose file (read-only) + the editable override.
+router.get(
+  '/:id/compose',
+  h(async (req, res) => {
+    const p = requireProject(req, res);
+    if (!p) return;
+    let base = '';
+    try {
+      base = fs.readFileSync(path.join(p.dir, p.composeFile), 'utf8');
+    } catch {
+      /* ignore */
+    }
+    const ovPath = docker.overridePath(p);
+    const override = fs.existsSync(ovPath) ? fs.readFileSync(ovPath, 'utf8') : '';
+    res.json({ file: p.composeFile, base, override, overrideExists: !!override.trim() });
+  })
+);
+
+// Compose: write the override file. Validates the merged config and rolls back
+// on error so a broken override can never be persisted.
+router.put(
+  '/:id/compose',
+  h(async (req, res) => {
+    const p = requireProject(req, res);
+    if (!p) return;
+    if (typeof req.body?.override !== 'string') {
+      return res.status(400).json({ error: 'override (string) required' });
+    }
+    const content = req.body.override;
+    const ovPath = docker.overridePath(p);
+    const backup = fs.existsSync(ovPath) ? fs.readFileSync(ovPath, 'utf8') : null;
+
+    const restore = () => {
+      if (backup === null) fs.rmSync(ovPath, { force: true });
+      else fs.writeFileSync(ovPath, backup);
+    };
+
+    if (!content.trim()) {
+      // Empty override → remove the file entirely (no override layer).
+      fs.rmSync(ovPath, { force: true });
+      const check = await docker.validateConfig(p);
+      if (!check.ok) { restore(); return res.status(400).json({ error: check.error }); }
+      return res.json({ ok: true, overrideExists: false });
+    }
+
+    fs.writeFileSync(ovPath, content);
+    const check = await docker.validateConfig(p);
+    if (!check.ok) {
+      restore();
+      return res.status(400).json({ error: 'Invalid compose config:\n' + check.error });
+    }
+    res.json({ ok: true, overrideExists: true });
   })
 );
 

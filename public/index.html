@@ -132,6 +132,38 @@
       </div>
     </div>
 
+    <!-- Compose override modal -->
+    <div id="compose-modal" class="modal" hidden>
+      <div class="modal-box wide">
+        <div class="modal-head">
+          <h3>Compose override — <span id="compose-title"></span></h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <div class="tabs">
+          <button class="tab active" data-ctab="override">Override (editable)</button>
+          <button class="tab" data-ctab="base">Base (read-only)</button>
+        </div>
+        <div id="compose-override" class="tab-panel">
+          <p class="hint" style="margin-top:0">
+            Layered on top of <code>docker-compose.yml</code> as
+            <code>docker-compose.override.yml</code>. Scalars replace; lists like
+            <code>ports</code>/<code>volumes</code> are <b>appended</b> (Compose merge rules —
+            use <code>!override</code>/<code>!reset</code> to replace). Empty = remove override.
+            Validated on save; applies on next start/restart.
+          </p>
+          <textarea id="compose-textarea" spellcheck="false" placeholder="services:&#10;  web:&#10;    ports:&#10;      - &quot;8080:80&quot;"></textarea>
+        </div>
+        <div id="compose-base" class="tab-panel" hidden>
+          <p class="hint" style="margin-top:0">Original file from the repo (read-only).</p>
+          <textarea id="compose-base-textarea" spellcheck="false" readonly></textarea>
+        </div>
+        <div class="modal-foot">
+          <span id="compose-msg" class="msg"></span>
+          <button id="compose-save" class="primary">Save override</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Routes (reverse proxy) modal -->
     <div id="routes-modal" class="modal" hidden>
       <div class="modal-box">

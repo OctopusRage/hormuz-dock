@@ -30,8 +30,10 @@ export function readLog({ userId = null, limit = 200 } = {}) {
 // Map a mutating API request to a human-readable action + the entity it targets.
 function describe(req) {
   const url = req.baseUrl + req.path; // e.g. /api/projects/<id>/start
-  const m = url.match(/^\/api\/projects\/([^/]+)(?:\/(\w+))?/);
+  // id is optional so the bare create URL (POST /api/projects) matches too.
+  const m = url.match(/^\/api\/projects(?:\/([^/]+))?(?:\/(\w+))?/);
   if (m) {
+    const id = m[1];
     const sub = m[2];
     const labels = {
       start: 'Start project',
@@ -43,10 +45,12 @@ function describe(req) {
       pull: 'Git pull',
       env: 'Update env',
       routes: 'Update routes',
+      compose: 'Update compose override',
     };
-    if (!sub && req.method === 'POST') return { action: 'Create project', kind: 'project-create' };
-    if (!sub && req.method === 'DELETE') return { action: 'Delete project', kind: 'project', id: m[1] };
-    return { action: labels[sub] || `${req.method} ${sub}`, kind: 'project', id: m[1] };
+    if (!id && req.method === 'POST') return { action: 'Create project', kind: 'project-create' };
+    if (id && !sub && req.method === 'DELETE') return { action: 'Delete project', kind: 'project', id };
+    if (id && sub) return { action: labels[sub] || `${req.method} ${sub}`, kind: 'project', id };
+    return { action: `${req.method} project`, kind: 'project', id };
   }
   if (url.startsWith('/api/users')) {
     if (req.method === 'POST' && !/\/password$/.test(url)) return { action: 'Create user', kind: 'user-create' };
