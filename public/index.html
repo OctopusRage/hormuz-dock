@@ -35,34 +35,56 @@
     </header>
 
     <main>
-      <section class="new-project card">
-        <h2>+ New Project</h2>
-        <form id="new-form">
-          <div class="row">
-            <input id="f-name" placeholder="Project name (e.g. My API)" required />
-            <input id="f-git" placeholder="Git URL (bitbucket / github …)" required />
-            <input id="f-branch" placeholder="Branch (optional)" />
-            <button type="submit" id="create-btn">Clone &amp; Add</button>
-          </div>
-          <p class="hint">
-            The repo will be cloned and must contain a <code>docker-compose.yml</code>.
-          </p>
-        </form>
-        <div id="new-msg" class="msg"></div>
+      <section id="membar" class="membar card" hidden>
+        <div class="membar-cap"></div>
+        <div class="membar-track"></div>
       </section>
 
       <section class="projects">
         <div class="projects-head">
-          <h2>Projects</h2>
+          <div class="ph-left">
+            <button id="open-new" class="sm">+ New Project</button>
+          </div>
           <label class="auto">
             <input type="checkbox" id="auto-refresh" checked /> Auto-refresh stats
           </label>
         </div>
         <div id="projects" class="project-grid"></div>
-        <div id="empty" class="empty" hidden>No projects yet. Add one above ☝️</div>
+        <div id="empty" class="empty" hidden>No projects yet — click <b>+ New Project</b> to add one.</div>
       </section>
     </main>
     </div><!-- /#app -->
+
+    <!-- New project modal -->
+    <div id="new-modal" class="modal" hidden>
+      <div class="modal-box narrow">
+        <div class="modal-head">
+          <h3>New project</h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <form id="new-form" class="tab-panel form-stack">
+          <div>
+            <label class="field-label">Project name</label>
+            <input id="f-name" placeholder="e.g. My API" required />
+          </div>
+          <div>
+            <label class="field-label">Git URL</label>
+            <input id="f-git" placeholder="git@bitbucket.org:team/repo.git" required />
+          </div>
+          <div>
+            <label class="field-label">Branch <span class="opt">(optional)</span></label>
+            <input id="f-branch" placeholder="defaults to the repo's default branch" />
+          </div>
+          <p class="hint" style="margin:0">
+            The repo is cloned and must contain a <code>docker-compose.yml</code>.
+          </p>
+        </form>
+        <div class="modal-foot">
+          <span id="new-msg" class="msg"></span>
+          <button type="submit" form="new-form" id="create-btn" class="primary">Clone &amp; Add</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Users admin modal -->
     <div id="users-modal" class="modal" hidden>
@@ -74,16 +96,57 @@
         <div class="tab-panel">
           <div id="users-list" class="users-list"></div>
           <h4 class="section">Create user</h4>
-          <div class="create-user">
-            <input id="nu-name" placeholder="username" />
-            <input id="nu-pass" type="text" placeholder="password" />
-            <select id="nu-role">
-              <option value="user" selected>user</option>
-              <option value="admin">admin</option>
-            </select>
-            <button id="nu-create" class="primary sm">Create</button>
+          <form id="create-user-form" class="form-stack">
+            <div class="cu-grid">
+              <div>
+                <label class="field-label">Username</label>
+                <input id="nu-name" placeholder="e.g. andriar" autocomplete="off" />
+              </div>
+              <div>
+                <label class="field-label">Role</label>
+                <select id="nu-role">
+                  <option value="user" selected>user</option>
+                  <option value="admin">admin</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="field-label">Password</label>
+              <div class="pw-field">
+                <input id="nu-pass" type="password" placeholder="At least 4 characters" autocomplete="new-password" />
+                <button type="button" id="nu-show" class="ghost sm">Show</button>
+                <button type="button" id="nu-gen" class="ghost sm">Generate</button>
+              </div>
+            </div>
+            <div class="cu-foot">
+              <span id="users-msg" class="msg"></span>
+              <button id="nu-create" class="primary" type="submit">Create user</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reset password modal -->
+    <div id="reset-modal" class="modal" hidden>
+      <div class="modal-box narrow">
+        <div class="modal-head">
+          <h3>Reset password — <span id="reset-title"></span></h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <form id="reset-form" class="tab-panel form-stack">
+          <div>
+            <label class="field-label">New password</label>
+            <div class="pw-field">
+              <input id="rp-pass" type="password" placeholder="At least 4 characters" autocomplete="new-password" />
+              <button type="button" id="rp-show" class="ghost sm">Show</button>
+              <button type="button" id="rp-gen" class="ghost sm">Generate</button>
+            </div>
           </div>
-          <div id="users-msg" class="msg"></div>
+        </form>
+        <div class="modal-foot">
+          <span id="reset-msg" class="msg"></span>
+          <button id="rp-save" class="primary">Set password</button>
         </div>
       </div>
     </div>
@@ -128,6 +191,34 @@
         <div class="modal-foot">
           <span id="env-msg" class="msg"></span>
           <button id="env-save" class="primary">Save .env</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Change password modal -->
+    <div id="password-modal" class="modal" hidden>
+      <div class="modal-box narrow">
+        <div class="modal-head">
+          <h3>Change password</h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <form id="password-form" class="tab-panel form-stack">
+          <div>
+            <label class="field-label">Current password</label>
+            <input id="pw-current" type="password" autocomplete="current-password" placeholder="••••••••" />
+          </div>
+          <div>
+            <label class="field-label">New password</label>
+            <input id="pw-new" type="password" autocomplete="new-password" placeholder="At least 4 characters" />
+          </div>
+          <div>
+            <label class="field-label">Confirm new password</label>
+            <input id="pw-confirm" type="password" autocomplete="new-password" placeholder="Repeat new password" />
+          </div>
+        </form>
+        <div class="modal-foot">
+          <span id="pw-msg" class="msg"></span>
+          <button id="pw-save" class="primary">Update password</button>
         </div>
       </div>
     </div>

@@ -45,6 +45,11 @@ function fmtBytes(n) {
 
 let projects = [];
 let statsTimer = null;
+const projMem = {}; // projectId -> latest total memBytes
+let memTotal = 0; // host RAM in bytes
+
+// Stable-ish colors for project memory segments (free = gray, separate).
+const MEM_COLORS = ['#3b6fd4', '#d9922b', '#2ea86a', '#d9534f', '#8b5cf6', '#1fb6a6', '#d9599b', '#2f9fd0'];
 
 // ---------- System bar ----------
 async function loadSystem() {
@@ -54,12 +59,37 @@ async function loadSystem() {
       $('#system').innerHTML = `<span style="color:var(--red)">⚠ Docker not available</span>`;
       return;
     }
+    memTotal = s.memTotal || memTotal;
     $('#system').innerHTML = `
       <span>Docker <b>${s.version || '?'}</b></span>
       <span>CPUs <b>${s.ncpu ?? '?'}</b></span>
       <span>RAM <b>${fmtBytes(s.memTotal)}</b></span>
       <span>Containers <b>${s.containersRunning}/${s.containersTotal}</b></span>`;
+    renderMemoryBar();
   } catch { /* ignore */ }
+}
+
+// ---------- Memory overview bar (per-project usage + free) ----------
+function renderMemoryBar() {
+  const el = $('#membar');
+  if (!el || !memTotal) { if (el) el.hidden = true; return; }
+
+  const used = projects
+    .map((p, i) => ({ name: p.name, mem: projMem[p.id] || 0, color: MEM_COLORS[i % MEM_COLORS.length] }))
+    .filter((u) => u.mem > 0)
+    .sort((a, b) => b.mem - a.mem);
+  const sumUsed = used.reduce((a, u) => a + u.mem, 0);
+  const free = Math.max(0, memTotal - sumUsed);
+
+  const seg = (label, bytes, color, cls = '') =>
+    `<div class="mseg ${cls}" style="width:${((bytes / memTotal) * 100).toFixed(3)}%${color ? `;background:${color}` : ''}"
+      title="${esc(label)} — ${fmtBytes(bytes)}"><span>${esc(label)} · ${fmtBytes(bytes)}</span></div>`;
+
+  el.querySelector('.membar-track').innerHTML =
+    used.map((u) => seg(u.name, u.mem, u.color)).join('') + seg('Free', free, null, 'free');
+  el.querySelector('.membar-cap').innerHTML =
+    `Memory · <b>${fmtBytes(sumUsed)}</b> used by ${used.length} project${used.length === 1 ? '' : 's'} · <b>${fmtBytes(free)}</b> free of ${fmtBytes(memTotal)}`;
+  el.hidden = false;
 }
 
 // ---------- Project list ----------
@@ -164,6 +194,7 @@ function esc(s) {
 async function refreshStats() {
   if (!$('#auto-refresh').checked) return;
   await Promise.all(projects.map(updateProjectStats));
+  renderMemoryBar();
 }
 
 async function updateProjectStats(p) {
@@ -175,6 +206,7 @@ async function updateProjectStats(p) {
   } catch {
     return;
   }
+  projMem[p.id] = data.totals.memBytes; // feed the memory overview bar
   const ncpu = window.__ncpu || 1;
   const cpuPct = Math.min(100, data.totals.cpu / ncpu); // normalize to host cores
   $('[data-cpu]', card).textContent = data.totals.cpu.toFixed(1) + '%';
@@ -253,6 +285,15 @@ document.addEventListener('click', async (e) => {
 });
 
 // ---------- New project ----------
+function openNewProject() {
+  $('#new-form').reset();
+  $('#new-msg').textContent = '';
+  $('#new-msg').className = 'msg';
+  $('#new-modal').hidden = false;
+  $('#f-name').focus();
+}
+$('#open-new').addEventListener('click', openNewProject);
+
 $('#new-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const msg = $('#new-msg');
@@ -267,10 +308,8 @@ $('#new-form').addEventListener('submit', async (e) => {
   msg.textContent = 'Cloning repository…';
   try {
     await api.send('POST', '/api/projects', body);
-    msg.className = 'msg ok';
-    msg.textContent = 'Project added!';
-    $('#new-form').reset();
     await loadProjects();
+    $('#new-modal').hidden = true; // close on success
   } catch (err) {
     msg.className = 'msg err';
     msg.textContent = err.message;
@@ -782,18 +821,45 @@ async function logout() {
   showLogin();
 }
 
-async function changePassword() {
-  const cur = prompt('Current password:');
-  if (cur == null) return;
-  const nw = prompt('New password (min 4 chars):');
-  if (!nw) return;
+function changePassword() {
+  $('#pw-current').value = '';
+  $('#pw-new').value = '';
+  $('#pw-confirm').value = '';
+  const msg = $('#pw-msg');
+  msg.className = 'msg';
+  msg.textContent = '';
+  $('#password-modal').hidden = false;
+  $('#pw-current').focus();
+}
+
+async function submitPassword() {
+  const cur = $('#pw-current').value;
+  const nw = $('#pw-new').value;
+  const cf = $('#pw-confirm').value;
+  const msg = $('#pw-msg');
+  const fail = (t) => { msg.className = 'msg err'; msg.textContent = t; };
+
+  if (!cur) return fail('Enter your current password.');
+  if (nw.length < 4) return fail('New password must be at least 4 characters.');
+  if (nw !== cf) return fail('New passwords do not match.');
+
+  msg.className = 'msg';
+  msg.textContent = 'Updating…';
+  $('#pw-save').disabled = true;
   try {
     await api.send('POST', '/api/auth/password', { currentPassword: cur, newPassword: nw });
-    alert('Password changed.');
+    msg.className = 'msg ok';
+    msg.textContent = 'Password updated.';
+    setTimeout(() => { $('#password-modal').hidden = true; }, 900);
   } catch (e) {
-    alert(e.message);
+    fail(e.message);
+  } finally {
+    $('#pw-save').disabled = false;
   }
 }
+
+$('#pw-save').addEventListener('click', submitPassword);
+$('#password-form').addEventListener('submit', (e) => { e.preventDefault(); submitPassword(); });
 
 // ---------- Users admin modal ----------
 async function openUsers() {
@@ -808,47 +874,117 @@ async function loadUsers() {
       (u) => `<div class="user-row">
         <span class="u-name">${esc(u.username)} <span class="role ${esc(u.role)}">${esc(u.role)}</span></span>
         <span class="u-meta">${u.created_by ? 'by ' + esc(u.created_by) : ''}</span>
-        <button class="sm ghost" data-reset="${u.id}">Reset pw</button>
+        <button class="sm ghost" data-reset="${u.id}" data-name="${esc(u.username)}">Reset pw</button>
         ${u.id === currentUser.id ? '' : `<button class="sm danger" data-deluser="${u.id}" data-name="${esc(u.username)}">Delete</button>`}
       </div>`
     )
     .join('');
 }
-$('#nu-create').addEventListener('click', async () => {
+// Toggle a password input between hidden/visible and flip the button label.
+function bindPwToggle(btnId, inputId) {
+  $(btnId).addEventListener('click', () => {
+    const input = $(inputId);
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    $(btnId).textContent = show ? 'Hide' : 'Show';
+  });
+}
+// Generate a readable random password and reveal it.
+function genPassword(inputId, btnId) {
+  const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = '';
+  const rnd = crypto.getRandomValues(new Uint32Array(14));
+  for (let i = 0; i < 14; i++) out += chars[rnd[i] % chars.length];
+  $(inputId).value = out;
+  $(inputId).type = 'text';
+  if (btnId) $(btnId).textContent = 'Hide';
+}
+bindPwToggle('#nu-show', '#nu-pass');
+$('#nu-gen').addEventListener('click', () => genPassword('#nu-pass', '#nu-show'));
+
+$('#create-user-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
   const msg = $('#users-msg');
+  const fail = (t) => { msg.className = 'msg err'; msg.textContent = t; };
+  const username = $('#nu-name').value.trim();
+  const password = $('#nu-pass').value;
+  if (!username) return fail('Enter a username.');
+  if (!/^[a-zA-Z0-9_.-]{2,32}$/.test(username)) {
+    return fail('Username: 2–32 chars, letters/numbers/. _ - only.');
+  }
+  if (password.length < 4) return fail('Password must be at least 4 characters.');
+
   msg.className = 'msg';
+  msg.textContent = 'Creating…';
+  $('#nu-create').disabled = true;
   try {
-    await api.send('POST', '/api/users', {
-      username: $('#nu-name').value.trim(),
-      password: $('#nu-pass').value,
-      role: $('#nu-role').value,
-    });
+    await api.send('POST', '/api/users', { username, password, role: $('#nu-role').value });
     $('#nu-name').value = '';
     $('#nu-pass').value = '';
+    $('#nu-pass').type = 'password';
+    $('#nu-show').textContent = 'Show';
+    $('#nu-role').value = 'user';
     msg.className = 'msg ok';
-    msg.textContent = 'User created.';
+    msg.textContent = `User "${username}" created.`;
     await loadUsers();
-  } catch (e) {
-    msg.className = 'msg err';
-    msg.textContent = e.message;
+  } catch (e2) {
+    fail(e2.message);
+  } finally {
+    $('#nu-create').disabled = false;
   }
 });
+
+// Delete (native confirm — destructive) and Reset (proper modal).
 $('#users-list').addEventListener('click', async (e) => {
   const del = e.target.closest('[data-deluser]');
   const reset = e.target.closest('[data-reset]');
-  const msg = $('#users-msg');
-  msg.className = 'msg';
   if (del) {
-    if (!confirm(`Delete user "${del.dataset.name}"?`)) return;
+    if (!confirm(`Delete user "${del.dataset.name}"? This cannot be undone.`)) return;
+    const msg = $('#users-msg');
+    msg.className = 'msg';
     try { await api.send('DELETE', `/api/users/${del.dataset.deluser}`); await loadUsers(); }
     catch (er) { msg.className = 'msg err'; msg.textContent = er.message; }
   } else if (reset) {
-    const pw = prompt('New password for this user:');
-    if (!pw) return;
-    try { await api.send('POST', `/api/users/${reset.dataset.reset}/password`, { password: pw }); msg.className = 'msg ok'; msg.textContent = 'Password reset.'; }
-    catch (er) { msg.className = 'msg err'; msg.textContent = er.message; }
+    openReset(reset.dataset.reset, reset.dataset.name);
   }
 });
+
+// ---------- Reset password modal ----------
+let resetUserId = null;
+function openReset(id, name) {
+  resetUserId = id;
+  $('#reset-title').textContent = name;
+  $('#rp-pass').value = '';
+  $('#rp-pass').type = 'password';
+  $('#rp-show').textContent = 'Show';
+  $('#reset-msg').textContent = '';
+  $('#reset-modal').hidden = false;
+  $('#rp-pass').focus();
+}
+bindPwToggle('#rp-show', '#rp-pass');
+$('#rp-gen').addEventListener('click', () => genPassword('#rp-pass', '#rp-show'));
+
+async function submitReset() {
+  const pw = $('#rp-pass').value;
+  const msg = $('#reset-msg');
+  if (pw.length < 4) { msg.className = 'msg err'; msg.textContent = 'Password must be at least 4 characters.'; return; }
+  msg.className = 'msg';
+  msg.textContent = 'Setting…';
+  $('#rp-save').disabled = true;
+  try {
+    await api.send('POST', `/api/users/${resetUserId}/password`, { password: pw });
+    msg.className = 'msg ok';
+    msg.textContent = 'Password updated.';
+    setTimeout(() => { $('#reset-modal').hidden = true; }, 900);
+  } catch (e) {
+    msg.className = 'msg err';
+    msg.textContent = e.message;
+  } finally {
+    $('#rp-save').disabled = false;
+  }
+}
+$('#rp-save').addEventListener('click', submitReset);
+$('#reset-form').addEventListener('submit', (e) => { e.preventDefault(); submitReset(); });
 
 // ---------- Audit log modal ----------
 async function openAudit() {
