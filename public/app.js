@@ -1,10 +1,21 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+function handle401(status) {
+  // Session expired or logged out elsewhere — drop back to the login screen.
+  if (status === 401 && currentUser) {
+    currentUser = null;
+    showLogin();
+  }
+}
+
 const api = {
   async get(url) {
     const r = await fetch(url);
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+    if (!r.ok) {
+      handle401(r.status);
+      throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+    }
     return r.json();
   },
   async send(method, url, body) {
@@ -14,10 +25,15 @@ const api = {
       body: body ? JSON.stringify(body) : undefined,
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || r.statusText);
+    if (!r.ok) {
+      handle401(r.status);
+      throw new Error(data.error || r.statusText);
+    }
     return data;
   },
 };
+
+let currentUser = null;
 
 function fmtBytes(n) {
   if (!n) return '0 B';
@@ -627,12 +643,9 @@ $('#logs-refresh').addEventListener('click', refreshLogs);
 // close modals
 $$('[data-close]').forEach((b) =>
   b.addEventListener('click', () => {
-    $('#env-modal').hidden = true;
-    $('#logs-modal').hidden = true;
-    $('#branch-modal').hidden = true;
-    $('#routes-modal').hidden = true;
-    $('#shell-modal').hidden = true;
-    closeShellWs();
+    const modal = b.closest('.modal');
+    if (modal) modal.hidden = true;
+    if (modal && modal.id === 'shell-modal') closeShellWs();
   })
 );
 $$('.modal').forEach((m) =>
@@ -644,8 +657,153 @@ $$('.modal').forEach((m) =>
   })
 );
 
+// ---------- Auth: login screen ----------
+function showLogin() {
+  $('#app').hidden = true;
+  $('#login').hidden = false;
+  $('#login-msg').textContent = '';
+  $('#login-user').focus();
+  if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+}
+function hideLogin() {
+  $('#login').hidden = true;
+  $('#app').hidden = false;
+}
+
+$('#login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('#login-msg');
+  msg.className = 'msg';
+  msg.textContent = 'Signing in…';
+  $('#login-btn').disabled = true;
+  try {
+    currentUser = await api.send('POST', '/api/auth/login', {
+      username: $('#login-user').value.trim(),
+      password: $('#login-pass').value,
+    });
+    $('#login-pass').value = '';
+    hideLogin();
+    await initApp();
+  } catch (err) {
+    msg.className = 'msg err';
+    msg.textContent = err.message;
+  } finally {
+    $('#login-btn').disabled = false;
+  }
+});
+
+function renderUserbar() {
+  const admin = currentUser.role === 'admin';
+  $('#userbar').innerHTML = `
+    <span class="whoami">${esc(currentUser.username)} <span class="role ${esc(currentUser.role)}">${esc(currentUser.role)}</span></span>
+    ${admin ? '<button class="sm ghost" id="btn-users">Users</button>' : ''}
+    <button class="sm ghost" id="btn-audit">Audit log</button>
+    <button class="sm ghost" id="btn-pass">Password</button>
+    <button class="sm ghost" id="btn-logout">Logout</button>`;
+  if (admin) $('#btn-users').addEventListener('click', openUsers);
+  $('#btn-audit').addEventListener('click', openAudit);
+  $('#btn-pass').addEventListener('click', changePassword);
+  $('#btn-logout').addEventListener('click', logout);
+}
+
+async function logout() {
+  await api.send('POST', '/api/auth/logout').catch(() => {});
+  currentUser = null;
+  showLogin();
+}
+
+async function changePassword() {
+  const cur = prompt('Current password:');
+  if (cur == null) return;
+  const nw = prompt('New password (min 4 chars):');
+  if (!nw) return;
+  try {
+    await api.send('POST', '/api/auth/password', { currentPassword: cur, newPassword: nw });
+    alert('Password changed.');
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// ---------- Users admin modal ----------
+async function openUsers() {
+  $('#users-msg').textContent = '';
+  $('#users-modal').hidden = false;
+  await loadUsers();
+}
+async function loadUsers() {
+  const users = await api.get('/api/users');
+  $('#users-list').innerHTML = users
+    .map(
+      (u) => `<div class="user-row">
+        <span class="u-name">${esc(u.username)} <span class="role ${esc(u.role)}">${esc(u.role)}</span></span>
+        <span class="u-meta">${u.created_by ? 'by ' + esc(u.created_by) : ''}</span>
+        <button class="sm ghost" data-reset="${u.id}">Reset pw</button>
+        ${u.id === currentUser.id ? '' : `<button class="sm danger" data-deluser="${u.id}" data-name="${esc(u.username)}">Delete</button>`}
+      </div>`
+    )
+    .join('');
+}
+$('#nu-create').addEventListener('click', async () => {
+  const msg = $('#users-msg');
+  msg.className = 'msg';
+  try {
+    await api.send('POST', '/api/users', {
+      username: $('#nu-name').value.trim(),
+      password: $('#nu-pass').value,
+      role: $('#nu-role').value,
+    });
+    $('#nu-name').value = '';
+    $('#nu-pass').value = '';
+    msg.className = 'msg ok';
+    msg.textContent = 'User created.';
+    await loadUsers();
+  } catch (e) {
+    msg.className = 'msg err';
+    msg.textContent = e.message;
+  }
+});
+$('#users-list').addEventListener('click', async (e) => {
+  const del = e.target.closest('[data-deluser]');
+  const reset = e.target.closest('[data-reset]');
+  const msg = $('#users-msg');
+  msg.className = 'msg';
+  if (del) {
+    if (!confirm(`Delete user "${del.dataset.name}"?`)) return;
+    try { await api.send('DELETE', `/api/users/${del.dataset.deluser}`); await loadUsers(); }
+    catch (er) { msg.className = 'msg err'; msg.textContent = er.message; }
+  } else if (reset) {
+    const pw = prompt('New password for this user:');
+    if (!pw) return;
+    try { await api.send('POST', `/api/users/${reset.dataset.reset}/password`, { password: pw }); msg.className = 'msg ok'; msg.textContent = 'Password reset.'; }
+    catch (er) { msg.className = 'msg err'; msg.textContent = er.message; }
+  }
+});
+
+// ---------- Audit log modal ----------
+async function openAudit() {
+  $('#audit-modal').hidden = false;
+  await loadAudit();
+}
+async function loadAudit() {
+  const rows = await api.get('/api/logs?limit=300');
+  $('#audit-rows').innerHTML = rows
+    .map(
+      (l) => `<tr>
+        <td>${esc(new Date(l.at).toLocaleString())}</td>
+        <td>${esc(l.username || '—')}</td>
+        <td>${esc(l.action)}${l.detail ? ' <span class="muted">(' + esc(l.detail) + ')</span>' : ''}</td>
+        <td class="muted">${esc(l.target || '')}</td>
+        <td><span class="st st-${String(l.status).charAt(0)}">${esc(l.status ?? '')}</span></td>
+      </tr>`
+    )
+    .join('') || '<tr><td colspan="5" class="muted">No entries.</td></tr>';
+}
+$('#audit-refresh').addEventListener('click', loadAudit);
+
 // ---------- Boot ----------
-async function boot() {
+async function initApp() {
+  renderUserbar();
   const s = await api.get('/api/system').catch(() => ({}));
   window.__ncpu = s.ncpu || 1;
   await loadSystem();
@@ -653,5 +811,15 @@ async function boot() {
   await refreshStats();
   statsTimer = setInterval(refreshStats, 4000);
   setInterval(loadSystem, 10000);
+}
+
+async function boot() {
+  try {
+    currentUser = await api.get('/api/auth/me');
+    hideLogin();
+    await initApp();
+  } catch {
+    showLogin();
+  }
 }
 boot();

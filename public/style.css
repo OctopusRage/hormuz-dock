@@ -40,6 +40,39 @@ body {
 .system { display: flex; gap: 18px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
 .system b { color: var(--text); }
 
+/* auth */
+.login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.login-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; width: 340px; display: flex; flex-direction: column; gap: 12px; text-align: center; }
+.login-logo { font-size: 44px; }
+.login-card h1 { margin: 0; font-size: 22px; }
+.login-card .tagline { margin: 0 0 8px; }
+.login-card input { text-align: left; }
+.login-card button { margin-top: 4px; }
+.userbar { display: flex; align-items: center; gap: 8px; margin-left: 18px; }
+.whoami { font-size: 13px; color: var(--muted); }
+.role { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 6px; border-radius: 10px; margin-left: 4px; }
+.role.admin { background: rgba(76,141,255,.18); color: var(--accent); }
+.role.user { background: rgba(139,151,173,.18); color: var(--muted); }
+
+/* users modal */
+.users-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.user-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--panel-2); border-radius: 8px; }
+.user-row .u-name { flex: 1; font-size: 14px; }
+.user-row .u-meta { color: var(--muted); font-size: 12px; }
+h4.section { margin: 14px 0 8px; font-size: 13px; color: var(--muted); }
+.create-user { display: flex; gap: 8px; flex-wrap: wrap; }
+.create-user input { flex: 1; min-width: 100px; }
+.create-user select { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px; }
+
+/* audit table */
+table.audit { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.audit th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); }
+table.audit td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.audit .muted { color: var(--muted); }
+.st { font-weight: 700; padding: 1px 6px; border-radius: 6px; font-size: 12px; }
+.st-2 { color: var(--green); background: rgba(53,194,106,.15); }
+.st-4, .st-5 { color: var(--red); background: rgba(239,83,80,.15); }
+
 main { max-width: 1100px; margin: 0 auto; padding: 24px 28px 60px; }
 
 .card {

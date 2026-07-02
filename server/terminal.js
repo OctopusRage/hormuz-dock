@@ -3,6 +3,7 @@ import Docker from 'dockerode';
 import { URL } from 'node:url';
 import * as store from './store.js';
 import * as docker from './docker.js';
+import { logAction } from './audit.js';
 
 const dockerode = new Docker();
 
@@ -25,8 +26,9 @@ const wss = new WebSocketServer({ noServer: true });
 export const EXEC_PATH = '/ws/exec';
 
 /** Handle a WebSocket upgrade for the exec shell. */
-export function handleExecUpgrade(req, socket, head) {
+export function handleExecUpgrade(req, socket, head, user) {
   wss.handleUpgrade(req, socket, head, (ws) => {
+    ws._user = user; // carry the authenticated user for auditing
     wss.emit('connection', ws, req);
   });
 }
@@ -94,6 +96,13 @@ export function setupTerminal() {
         }
       });
 
+      logAction({
+        user: ws._user,
+        action: 'Open shell',
+        target: project.id,
+        detail: `${project.name} / ${match.service}`,
+        status: 200,
+      });
       ws.send('\r\n\x1b[32mConnected to ' + match.service + '.\x1b[0m\r\n');
     } catch (err) {
       closeWith(ws, 'Failed to open shell: ' + err.message);

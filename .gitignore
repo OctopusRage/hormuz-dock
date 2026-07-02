@@ -2,4 +2,6 @@ node_modules/
 data/repos/
 data/db.json
 data/db.json.tmp
+data/apphub.db
+data/apphub.db-*
 *.log
