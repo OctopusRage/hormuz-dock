@@ -1,0 +1,22 @@
+# Reference systemd unit (deploy/install.sh generates an equivalent one).
+# Copy to /etc/systemd/system/hormuz-dock.service, adjust paths if needed, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now hormuz-dock
+[Unit]
+Description=Hormuz Dock
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+User=hormuz
+SupplementaryGroups=docker
+WorkingDirectory=/opt/hormuz-dock/app
+EnvironmentFile=/etc/hormuz-dock.env
+ExecStart=/usr/bin/node server/index.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

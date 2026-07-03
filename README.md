@@ -38,6 +38,29 @@ Open http://localhost:4100
 
 Change the port with `PORT=8080 npm start`.
 
+## Run in production (Ubuntu/Debian, systemd)
+
+One idempotent installer sets up a service user, installs Node 24 + git, clones
+the repo to `/opt/hormuz-dock/app`, writes an env file with a generated admin
+password, and starts a `systemd` service. Requires Docker Engine + the compose
+plugin already installed.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OctopusRage/hormuz-dock/master/deploy/install.sh | sudo bash
+```
+
+Re-run the same command any time to update to the latest code. It prints the
+generated `admin` password on first install (also stored in `/etc/hormuz-dock.env`).
+Then put it behind HTTPS — e.g. Caddy:
+
+```
+dock.example.com {
+    reverse_proxy 127.0.0.1:4100
+}
+```
+
+Manual equivalents live in `deploy/` (`hormuz-dock.service`, `hormuz-dock.env.example`).
+
 ## Run in Docker
 
 Hormuz Dock can run in a container, but because it manages the **host's** Docker,
