@@ -20,9 +20,11 @@ export function run(cmd, args, opts = {}) {
 
     child.stdout.on('data', (d) => {
       if (stdout.length < maxBuf) stdout += d.toString();
+      if (opts.onData) opts.onData(d.toString());
     });
     child.stderr.on('data', (d) => {
       if (stderr.length < maxBuf) stderr += d.toString();
+      if (opts.onData) opts.onData(d.toString()); // compose writes progress to stderr
     });
 
     const timer = opts.timeout

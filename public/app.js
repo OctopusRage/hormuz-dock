@@ -158,7 +158,40 @@ function projectCard(p) {
       </div>
     </div>
     <div class="msg" data-msg></div>
+    ${renderOplog(p.id)}
   </div>`;
+}
+
+// ---------- Live operation log (docker build/start/stop/… output) ----------
+const opLogs = {}; // projectId -> { action, text, running, ok }
+const OP_LABELS = { start: 'Starting', stop: 'Stopping', restart: 'Restarting', rebuild: 'Rebuilding', redeploy: 'Pull & Rebuild' };
+
+function renderOplog(id) {
+  const op = opLogs[id];
+  if (!op) return '';
+  const icon = op.running ? '<span class="spin">↻</span>' : op.ok ? '✓' : '✗';
+  const cls = op.running ? 'running' : op.ok ? 'ok' : 'err';
+  return `<div class="oplog ${cls}">
+      <div class="oplog-head">
+        <span>${icon} ${esc(op.action)}${op.running ? '…' : op.ok ? ' — done' : ' — failed'}</span>
+        <button class="oplog-x" data-oplog-close="${id}" title="Hide log">×</button>
+      </div>
+      <pre class="oplog-body" data-oplog>${esc(op.text)}</pre>
+    </div>`;
+}
+
+function appendOpLog(id, chunk) {
+  const op = opLogs[id];
+  if (!op) return;
+  chunk = chunk.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, ''); // strip ANSI escapes
+  op.text += chunk;
+  if (op.text.length > 200000) op.text = op.text.slice(-200000);
+  const el = document.querySelector(`.project[data-id="${id}"] [data-oplog]`);
+  if (el) {
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 30;
+    el.textContent = op.text;
+    if (atBottom) el.scrollTop = el.scrollHeight;
+  }
 }
 
 // Unique host ports from "host:container" strings (compose lists IPv4+IPv6).
@@ -269,6 +302,18 @@ document.addEventListener('click', async (e) => {
   msg.className = 'msg';
   msg.textContent = `Running ${act}…`;
 
+  // Live-tail the docker output for long-running operations, in-card.
+  const streaming = ['start', 'stop', 'restart', 'rebuild', 'redeploy'].includes(act);
+  let es = null;
+  if (streaming) {
+    opLogs[id] = { action: OP_LABELS[act] || act, text: '', running: true, ok: false };
+    card.querySelector('.oplog')?.remove();
+    card.insertAdjacentHTML('beforeend', renderOplog(id)); // inject; keeps button/msg refs valid
+    es = new EventSource(`/api/projects/${id}/op-stream`);
+    es.addEventListener('data', (e) => appendOpLog(id, JSON.parse(e.data)));
+    es.addEventListener('end', () => es.close());
+  }
+
   try {
     if (act === 'delete') {
       await api.send('DELETE', `/api/projects/${id}`);
@@ -276,19 +321,28 @@ document.addEventListener('click', async (e) => {
       return;
     }
     const res = await api.send('POST', `/api/projects/${id}/${act}`);
-    msg.className = 'msg ok';
-    msg.textContent = ['pull', 'rebuild', 'redeploy'].includes(act)
-      ? (res.output || `${act} done.`).split('\n').slice(-3).join(' ').slice(0, 200)
-      : `${act} done.`;
+    if (opLogs[id]) { opLogs[id].running = false; opLogs[id].ok = true; }
     await loadProjects();
     await loadSystem();
   } catch (err) {
+    if (opLogs[id]) { opLogs[id].running = false; opLogs[id].ok = false; appendOpLog(id, '\n' + err.message + '\n'); }
     msg.className = 'msg err';
     msg.textContent = err.message;
     buttons.forEach((b) => (b.disabled = false));
     // Missing bind-mount files → open Files so the user can add them.
     if (err.missingFiles) openFiles(project, err.missingFiles);
+    renderProjects();
+  } finally {
+    if (es) es.close();
   }
+});
+
+// Dismiss an operation log panel.
+document.addEventListener('click', (e) => {
+  const x = e.target.closest('[data-oplog-close]');
+  if (!x) return;
+  delete opLogs[x.dataset.oplogClose];
+  renderProjects();
 });
 
 // ---------- New project ----------

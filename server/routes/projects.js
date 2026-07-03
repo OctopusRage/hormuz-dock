@@ -6,6 +6,7 @@ import * as git from '../git.js';
 import * as docker from '../docker.js';
 import * as envlib from '../env.js';
 import * as filelib from '../files.js';
+import * as oplog from '../oplog.js';
 
 const router = express.Router();
 
@@ -234,7 +235,9 @@ router.post(
     if (!p) return;
     const result = await withLock(p.id, async () => {
       await preflight(p);
-      const output = await docker.up(p, { build: true });
+      const output = await oplog.withOpLog(p.id, 'rebuild', (onData) =>
+        docker.up(p, { build: true, onData })
+      );
       const containers = await docker.ps(p);
       await store.updateProject(p.id, { status: docker.deriveStatus(containers) });
       return { ok: true, output, status: docker.deriveStatus(containers) };
@@ -250,18 +253,23 @@ router.post(
     const p = requireProject(req, res);
     if (!p) return;
     const result = await withLock(p.id, async () => {
-      const pullOut = await git.pull(p.dir);
-      const composeFile = git.detectComposeFile(p.dir);
-      await store.updateProject(p.id, { composeFile: composeFile || p.composeFile });
-      await preflight(store.getProject(p.id));
-      const upOut = await docker.up(store.getProject(p.id), { build: true });
-      const containers = await docker.ps(p);
-      await store.updateProject(p.id, { status: docker.deriveStatus(containers) });
-      return {
-        ok: true,
-        output: `$ git pull\n${pullOut}\n\n$ docker compose up -d --build\n${upOut}`,
-        status: docker.deriveStatus(containers),
-      };
+      return await oplog.withOpLog(p.id, 'redeploy', async (onData) => {
+        onData('$ git pull\n');
+        const pullOut = await git.pull(p.dir);
+        onData(pullOut + '\n');
+        const composeFile = git.detectComposeFile(p.dir);
+        await store.updateProject(p.id, { composeFile: composeFile || p.composeFile });
+        await preflight(store.getProject(p.id));
+        onData('\n$ docker compose up -d --build\n');
+        const upOut = await docker.up(store.getProject(p.id), { build: true, onData });
+        const containers = await docker.ps(p);
+        await store.updateProject(p.id, { status: docker.deriveStatus(containers) });
+        return {
+          ok: true,
+          output: `$ git pull\n${pullOut}\n\n$ docker compose up -d --build\n${upOut}`,
+          status: docker.deriveStatus(containers),
+        };
+      });
     });
     res.json(result);
   })
@@ -280,7 +288,7 @@ for (const [action, fn] of [
       if (!p) return;
       const result = await withLock(p.id, async () => {
         if (action === 'start') await preflight(p);
-        const output = await fn(p);
+        const output = await oplog.withOpLog(p.id, action, (onData) => fn(p, { onData }));
         const containers = await docker.ps(p);
         await store.updateProject(p.id, { status: docker.deriveStatus(containers) });
         return { ok: true, output, status: docker.deriveStatus(containers) };
@@ -299,6 +307,38 @@ router.get(
     res.json(await docker.stats(p));
   })
 );
+
+// Live operation log (SSE). Replays the current op's buffer, then streams
+// chunks as docker compose produces them, and an "end" event on completion.
+router.get('/:id/op-stream', (req, res) => {
+  const p = requireProject(req, res);
+  if (!p) return;
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders?.();
+
+  const send = (ev, data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
+
+  const cur = oplog.currentOp(p.id);
+  if (cur) {
+    send('start', { action: cur.action });
+    if (cur.lines.length) send('data', cur.lines.join(''));
+    if (cur.done) send('end', { ok: cur.ok });
+  }
+
+  const unsub = oplog.subscribe(p.id, (ev) => {
+    if (ev.type === 'start') send('start', { action: ev.action });
+    else if (ev.type === 'data') send('data', ev.chunk);
+    else if (ev.type === 'end') send('end', { ok: ev.ok, message: ev.message });
+  });
+
+  const keepalive = setInterval(() => res.write(': ping\n\n'), 25000);
+  req.on('close', () => { clearInterval(keepalive); unsub(); });
+});
 
 // Logs.
 router.get(

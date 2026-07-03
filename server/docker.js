@@ -40,6 +40,7 @@ function compose(project, extra, opts = {}) {
     timeout: opts.timeout || 10 * 60 * 1000,
     replaceEnv: true,
     env: composeEnv(),
+    onData: opts.onData, // stream live output to the operation log
   });
 }
 
@@ -86,34 +87,34 @@ export async function missingBindFiles(project) {
   return missing;
 }
 
-export async function up(project, { build = false } = {}) {
+export async function up(project, { build = false, onData } = {}) {
   const args = ['up', '-d', '--remove-orphans'];
   if (build) args.push('--build'); // rebuild images from source before recreating
-  const res = await compose(project, args);
+  const res = await compose(project, args, { onData });
   if (res.code !== 0) {
     throw new Error(res.stderr.trim() || res.stdout.trim() || 'compose up failed');
   }
   return res.stdout + res.stderr;
 }
 
-export async function stop(project) {
-  const res = await compose(project, ['stop']);
+export async function stop(project, { onData } = {}) {
+  const res = await compose(project, ['stop'], { onData });
   if (res.code !== 0) {
     throw new Error(res.stderr.trim() || 'compose stop failed');
   }
   return res.stdout + res.stderr;
 }
 
-export async function down(project) {
-  const res = await compose(project, ['down', '--remove-orphans']);
+export async function down(project, { onData } = {}) {
+  const res = await compose(project, ['down', '--remove-orphans'], { onData });
   if (res.code !== 0) {
     throw new Error(res.stderr.trim() || 'compose down failed');
   }
   return res.stdout + res.stderr;
 }
 
-export async function restart(project) {
-  const res = await compose(project, ['restart']);
+export async function restart(project, { onData } = {}) {
+  const res = await compose(project, ['restart'], { onData });
   if (res.code !== 0) {
     throw new Error(res.stderr.trim() || 'compose restart failed');
   }
