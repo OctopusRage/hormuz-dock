@@ -8,6 +8,17 @@ A lightweight web app to manage multiple **Docker Compose** projects on a single
 Drop in a git link, Hormuz Dock clones it, finds the compose file, and gives you a GUI to
 edit env vars, start/stop the stack, and watch resource usage.
 
+## Quick start
+
+On an Ubuntu/Debian server that already has Docker + the compose plugin, one
+command installs and starts everything (see [Run in production](#run-in-production-ubuntudebian-systemd) for details):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OctopusRage/hormuz-dock/master/deploy/install.sh | sudo bash
+```
+
+Re-run it any time to update. It prints the generated `admin` password on first install.
+
 ## Features
 
 1. **Create project** — paste a Bitbucket / GitHub / any git URL (optional branch).
