@@ -24,17 +24,27 @@ export async function clone(gitUrl, dir, branch) {
   }
 }
 
-/** git pull (fetch + reset to origin) in an existing repo dir. */
+/**
+ * Sync the clone to its remote branch. This is a deploy checkout, not a working
+ * copy, so we mirror the remote (fetch + hard reset) rather than merge — that
+ * also handles force-pushed / diverged histories, which `pull --ff-only` rejects.
+ */
 export async function pull(dir) {
-  const res = await run('git', ['pull', '--ff-only'], {
-    cwd: dir,
-    timeout: 5 * 60 * 1000,
-    env: { GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'echo' },
-  });
-  if (res.code !== 0) {
-    throw new Error(`git pull failed: ${res.stderr.trim() || res.stdout.trim()}`);
+  const env = { GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'echo' };
+  const opts = { cwd: dir, timeout: 5 * 60 * 1000, env };
+
+  const branchRes = await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir });
+  const branch = branchRes.stdout.trim() || 'HEAD';
+
+  const fetch = await run('git', ['fetch', '--prune', 'origin', branch], opts);
+  if (fetch.code !== 0) {
+    throw new Error(`git fetch failed: ${fetch.stderr.trim() || fetch.stdout.trim()}`);
   }
-  return res.stdout.trim();
+  const reset = await run('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: dir });
+  if (reset.code !== 0) {
+    throw new Error(`git reset failed: ${reset.stderr.trim() || reset.stdout.trim()}`);
+  }
+  return `${fetch.stderr.trim()}\n${reset.stdout.trim()}`.trim();
 }
 
 const NO_PROMPT = { GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'echo' };
