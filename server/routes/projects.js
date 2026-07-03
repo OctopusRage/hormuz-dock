@@ -5,6 +5,7 @@ import * as store from '../store.js';
 import * as git from '../git.js';
 import * as docker from '../docker.js';
 import * as envlib from '../env.js';
+import * as filelib from '../files.js';
 
 const router = express.Router();
 
@@ -31,8 +32,26 @@ async function withLock(id, fn) {
 const h = (fn) => (req, res) =>
   fn(req, res).catch((err) => {
     console.error(err);
-    res.status(err.status || 500).json({ error: err.message });
+    const body = { error: err.message };
+    if (err.missingFiles) body.missingFiles = err.missingFiles;
+    res.status(err.status || 500).json(body);
   });
+
+// Before an up/start, refuse if the compose bind-mounts files that don't exist
+// on the host (Docker would create them as empty dirs and the app would crash).
+async function preflight(project) {
+  const missing = (await docker.missingBindFiles(project)).filter((m) => m.likelyFile);
+  if (missing.length) {
+    const err = new Error(
+      'Missing files that the compose bind-mounts: ' +
+        missing.map((m) => m.rel).join(', ') +
+        '. Create/upload them (Files) before starting.'
+    );
+    err.status = 409;
+    err.missingFiles = missing;
+    throw err;
+  }
+}
 
 function requireProject(req, res) {
   const p = store.getProject(req.params.id);
@@ -214,6 +233,7 @@ router.post(
     const p = requireProject(req, res);
     if (!p) return;
     const result = await withLock(p.id, async () => {
+      await preflight(p);
       const output = await docker.up(p, { build: true });
       const containers = await docker.ps(p);
       await store.updateProject(p.id, { status: docker.deriveStatus(containers) });
@@ -233,6 +253,7 @@ router.post(
       const pullOut = await git.pull(p.dir);
       const composeFile = git.detectComposeFile(p.dir);
       await store.updateProject(p.id, { composeFile: composeFile || p.composeFile });
+      await preflight(store.getProject(p.id));
       const upOut = await docker.up(store.getProject(p.id), { build: true });
       const containers = await docker.ps(p);
       await store.updateProject(p.id, { status: docker.deriveStatus(containers) });
@@ -258,6 +279,7 @@ for (const [action, fn] of [
       const p = requireProject(req, res);
       if (!p) return;
       const result = await withLock(p.id, async () => {
+        if (action === 'start') await preflight(p);
         const output = await fn(p);
         const containers = await docker.ps(p);
         await store.updateProject(p.id, { status: docker.deriveStatus(containers) });
@@ -287,6 +309,54 @@ router.get(
     const service = req.query.service || null;
     const tail = Math.min(parseInt(req.query.tail) || 200, 2000);
     res.json({ logs: await docker.logs(p, service, tail) });
+  })
+);
+
+// Files: list everything in the project dir (excludes .git/node_modules).
+router.get(
+  '/:id/files',
+  h(async (req, res) => {
+    const p = requireProject(req, res);
+    if (!p) return;
+    res.json(filelib.listFiles(p));
+  })
+);
+
+// Files: read one file's content (text inline; binary flagged).
+router.get(
+  '/:id/file',
+  h(async (req, res) => {
+    const p = requireProject(req, res);
+    if (!p) return;
+    if (!req.query.path) return res.status(400).json({ error: 'path is required' });
+    res.json(filelib.readFile(p, String(req.query.path)));
+  })
+);
+
+// Files: create/overwrite a file (text via content, binary via contentBase64).
+router.put(
+  '/:id/file',
+  h(async (req, res) => {
+    const p = requireProject(req, res);
+    if (!p) return;
+    const { path: rel, content, contentBase64 } = req.body || {};
+    if (!rel) return res.status(400).json({ error: 'path is required' });
+    if (content == null && contentBase64 == null) {
+      return res.status(400).json({ error: 'content or contentBase64 is required' });
+    }
+    res.json(await filelib.writeFile(p, rel, { content, contentBase64 }));
+  })
+);
+
+// Files: delete a file or directory within the project.
+router.delete(
+  '/:id/file',
+  h(async (req, res) => {
+    const p = requireProject(req, res);
+    if (!p) return;
+    if (!req.query.path) return res.status(400).json({ error: 'path is required' });
+    await filelib.deleteEntry(p, String(req.query.path));
+    res.json({ ok: true });
   })
 );
 

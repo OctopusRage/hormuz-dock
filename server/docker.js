@@ -54,6 +54,38 @@ export async function validateConfig(project) {
     : { ok: false, error: (res.stderr || res.stdout).trim() };
 }
 
+/**
+ * Bind-mount sources referenced by the merged compose that DON'T exist on the
+ * host. Docker would create these as empty directories, which breaks file
+ * mounts (e.g. a cert mounted as a dir). `likelyFile` flags paths that have an
+ * extension — almost certainly meant to be a file the operator must provide.
+ */
+export async function missingBindFiles(project) {
+  const res = await compose(project, ['config', '--format', 'json'], { timeout: 30 * 1000 });
+  if (res.code !== 0) return []; // invalid config — let `up` surface that error
+  let cfg;
+  try { cfg = JSON.parse(res.stdout); } catch { return []; }
+  const missing = [];
+  const seen = new Set();
+  for (const svc of Object.values(cfg.services || {})) {
+    for (const v of svc.volumes || []) {
+      if (v.type !== 'bind' || !v.source || seen.has(v.source)) continue;
+      seen.add(v.source);
+      if (fs.existsSync(v.source)) continue;
+      const rel = path.relative(project.dir, v.source);
+      const inside = !rel.startsWith('..') && !path.isAbsolute(rel);
+      missing.push({
+        source: v.source,
+        rel: inside ? rel : v.source,
+        target: v.target,
+        inside,
+        likelyFile: path.basename(v.source).includes('.'),
+      });
+    }
+  }
+  return missing;
+}
+
 export async function up(project, { build = false } = {}) {
   const args = ['up', '-d', '--remove-orphans'];
   if (build) args.push('--build'); // rebuild images from source before recreating

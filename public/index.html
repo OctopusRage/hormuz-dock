@@ -223,6 +223,34 @@
       </div>
     </div>
 
+    <!-- Files manager modal -->
+    <div id="files-modal" class="modal" hidden>
+      <div class="modal-box wide">
+        <div class="modal-head">
+          <h3>Files — <span id="files-title"></span></h3>
+          <div class="shell-controls">
+            <button id="files-new" class="sm ghost">New file</button>
+            <button id="files-upload-btn" class="sm ghost">Upload</button>
+            <input id="files-upload" type="file" hidden />
+            <button class="close" data-close>&times;</button>
+          </div>
+        </div>
+        <div id="files-banner" class="files-banner" hidden></div>
+        <div class="files-body">
+          <div id="files-list" class="files-list"></div>
+          <div class="files-editor">
+            <div id="files-path" class="files-path">Select a file to view or edit.</div>
+            <textarea id="files-textarea" spellcheck="false" hidden></textarea>
+            <div id="files-binary" class="files-binary" hidden></div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <span id="files-msg" class="msg"></span>
+          <button id="files-save" class="primary" hidden>Save file</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Compose override modal -->
     <div id="compose-modal" class="modal" hidden>
       <div class="modal-box wide">

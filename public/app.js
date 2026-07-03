@@ -27,7 +27,10 @@ const api = {
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
       handle401(r.status);
-      throw new Error(data.error || r.statusText);
+      const err = new Error(data.error || r.statusText);
+      err.status = r.status;
+      if (data.missingFiles) err.missingFiles = data.missingFiles;
+      throw err;
     }
     return data;
   },
@@ -142,6 +145,7 @@ function projectCard(p) {
         <button class="sm ghost menu-btn" data-menu aria-label="More actions">⋯</button>
         <div class="menu" hidden>
           <button data-act="env">Environment</button>
+          <button data-act="files">Files</button>
           <button data-act="compose">Compose override</button>
           <button data-act="routes">Proxy routes</button>
           <button data-act="branch">Switch branch</button>
@@ -249,6 +253,7 @@ document.addEventListener('click', async (e) => {
   const msg = $('[data-msg]', card);
 
   if (act === 'env') return openEnv(project);
+  if (act === 'files') return openFiles(project);
   if (act === 'compose') return openCompose(project);
   if (act === 'routes') return openRoutes(project);
   if (act === 'branch') return openBranch(project);
@@ -281,6 +286,8 @@ document.addEventListener('click', async (e) => {
     msg.className = 'msg err';
     msg.textContent = err.message;
     buttons.forEach((b) => (b.disabled = false));
+    // Missing bind-mount files → open Files so the user can add them.
+    if (err.missingFiles) openFiles(project, err.missingFiles);
   }
 });
 
@@ -387,6 +394,164 @@ $('#env-save').addEventListener('click', async () => {
     msg.className = 'msg err';
     msg.textContent = err.message;
   }
+});
+
+// ---------- Files manager modal ----------
+let filesProject = null;
+let filesCurrent = null; // path of the file open in the editor
+
+async function openFiles(project, missing) {
+  filesProject = project;
+  filesCurrent = null;
+  $('#files-title').textContent = project.name;
+  $('#files-msg').textContent = '';
+  $('#files-msg').className = 'msg';
+  $('#files-path').textContent = 'Select a file to view or edit.';
+  $('#files-textarea').hidden = true;
+  $('#files-binary').hidden = true;
+  $('#files-save').hidden = true;
+
+  // If opened because of a failed start, show which files are missing.
+  const banner = $('#files-banner');
+  if (missing && missing.length) {
+    banner.hidden = false;
+    banner.innerHTML =
+      '⚠ Missing files the compose expects (create them here): ' +
+      missing.map((m) => `<button class="link-file" data-newfile="${esc(m.rel)}">${esc(m.rel)}</button>`).join(', ');
+  } else {
+    banner.hidden = true;
+    banner.innerHTML = '';
+  }
+
+  $('#files-modal').hidden = false;
+  await loadFilesList();
+}
+
+async function loadFilesList() {
+  try {
+    const d = await api.get(`/api/projects/${filesProject.id}/files`);
+    const rows = d.files.filter((f) => !f.dir);
+    const dirs = d.files.filter((f) => f.dir);
+    $('#files-list').innerHTML =
+      (dirs.map((f) => `<div class="file-row is-dir"><span class="fname">${esc(f.path)}/</span><button class="fdel" data-del="${esc(f.path)}" title="Delete">✕</button></div>`).join('')) +
+      (rows.length
+        ? rows.map((f) => `<div class="file-row${f.path === filesCurrent ? ' active' : ''}" data-open="${esc(f.path)}">
+            <span class="fname">${esc(f.path)}</span>
+            <span class="fmeta">${fmtBytes(f.size)}</span>
+            <button class="fdel" data-del="${esc(f.path)}" title="Delete">✕</button>
+          </div>`).join('')
+        : '<div class="muted" style="padding:10px">No files.</div>');
+  } catch (e) {
+    $('#files-list').innerHTML = `<div class="msg err" style="padding:10px">${esc(e.message)}</div>`;
+  }
+}
+
+async function openFileInEditor(path) {
+  try {
+    const d = await api.get(`/api/projects/${filesProject.id}/file?path=${encodeURIComponent(path)}`);
+    filesCurrent = path;
+    $('#files-path').textContent = `${path} · ${fmtBytes(d.size)} · mode ${d.mode}`;
+    if (d.binary) {
+      $('#files-textarea').hidden = true;
+      $('#files-save').hidden = true;
+      $('#files-binary').hidden = false;
+      $('#files-binary').textContent = 'Binary file — cannot edit as text. Use Upload to replace it, or Delete.';
+    } else {
+      $('#files-binary').hidden = true;
+      $('#files-textarea').hidden = false;
+      $('#files-textarea').value = d.content;
+      $('#files-save').hidden = false;
+    }
+    loadFilesList();
+  } catch (e) {
+    $('#files-msg').className = 'msg err';
+    $('#files-msg').textContent = e.message;
+  }
+}
+
+async function saveCurrentFile() {
+  if (!filesCurrent) return;
+  const msg = $('#files-msg');
+  msg.className = 'msg';
+  msg.textContent = 'Saving…';
+  try {
+    await api.send('PUT', `/api/projects/${filesProject.id}/file`, {
+      path: filesCurrent,
+      content: $('#files-textarea').value,
+    });
+    msg.className = 'msg ok';
+    msg.textContent = 'Saved (mode 0644). Restart/rebuild to apply.';
+    await loadFilesList();
+  } catch (e) {
+    msg.className = 'msg err';
+    msg.textContent = e.message;
+  }
+}
+
+async function newFile(defaultName) {
+  const name = prompt('New file path (relative to the project):', defaultName || '');
+  if (!name) return;
+  try {
+    await api.send('PUT', `/api/projects/${filesProject.id}/file`, { path: name.trim(), content: '' });
+    $('#files-banner').hidden = true;
+    await loadFilesList();
+    await openFileInEditor(name.trim());
+  } catch (e) {
+    $('#files-msg').className = 'msg err';
+    $('#files-msg').textContent = e.message;
+  }
+}
+
+$('#files-save').addEventListener('click', saveCurrentFile);
+$('#files-new').addEventListener('click', () => newFile());
+$('#files-upload-btn').addEventListener('click', () => $('#files-upload').click());
+$('#files-upload').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const name = prompt('Save uploaded file as (path relative to project):', file.name);
+  if (!name) { e.target.value = ''; return; }
+  const msg = $('#files-msg');
+  msg.className = 'msg';
+  msg.textContent = 'Uploading…';
+  try {
+    const b64 = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1]);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+    await api.send('PUT', `/api/projects/${filesProject.id}/file`, { path: name.trim(), contentBase64: b64 });
+    msg.className = 'msg ok';
+    msg.textContent = `Uploaded ${name.trim()}.`;
+    $('#files-banner').hidden = true;
+    await loadFilesList();
+  } catch (err) {
+    msg.className = 'msg err';
+    msg.textContent = err.message;
+  } finally {
+    e.target.value = '';
+  }
+});
+
+// Delegated clicks inside the Files modal: open / delete / create-missing.
+$('#files-list').addEventListener('click', async (e) => {
+  const del = e.target.closest('[data-del]');
+  const open = e.target.closest('[data-open]');
+  if (del) {
+    e.stopPropagation();
+    if (!confirm(`Delete "${del.dataset.del}"?`)) return;
+    try {
+      await api.send('DELETE', `/api/projects/${filesProject.id}/file?path=${encodeURIComponent(del.dataset.del)}`);
+      if (filesCurrent === del.dataset.del) { filesCurrent = null; $('#files-textarea').hidden = true; $('#files-save').hidden = true; $('#files-path').textContent = 'Select a file to view or edit.'; }
+      await loadFilesList();
+    } catch (er) { $('#files-msg').className = 'msg err'; $('#files-msg').textContent = er.message; }
+  } else if (open) {
+    openFileInEditor(open.dataset.open);
+  }
+});
+$('#files-banner').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-newfile]');
+  if (b) newFile(b.dataset.newfile);
 });
 
 // ---------- Compose override modal ----------

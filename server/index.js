@@ -32,7 +32,7 @@ const app = express();
 // body parsing and auth, so proxied apps stay publicly reachable.
 app.use(proxyMiddleware);
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '20mb' })); // room for base64 file uploads via the Files manager
 
 // Auth endpoints are open (login / me / logout).
 app.use('/api/auth', authRouter);
