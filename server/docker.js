@@ -20,10 +20,26 @@ function baseArgs(project) {
   return args;
 }
 
+// A minimal, clean environment for `docker compose`. Only what the docker CLI
+// itself needs — NOT Hormuz Dock's own env — so the managed project's .env is
+// authoritative and our secrets never reach it. (OS env vars otherwise override
+// a project's .env in Compose.)
+function composeEnv() {
+  const keep = [
+    'PATH', 'HOME',
+    'DOCKER_HOST', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'DOCKER_CERT_PATH', 'DOCKER_TLS_VERIFY',
+  ];
+  const env = {};
+  for (const k of keep) if (process.env[k] != null) env[k] = process.env[k];
+  return env;
+}
+
 function compose(project, extra, opts = {}) {
   return run('docker', [...baseArgs(project), ...extra], {
     cwd: project.dir,
     timeout: opts.timeout || 10 * 60 * 1000,
+    replaceEnv: true,
+    env: composeEnv(),
   });
 }
 

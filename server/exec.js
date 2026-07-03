@@ -8,7 +8,10 @@ export function run(cmd, args, opts = {}) {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
-      env: { ...process.env, ...(opts.env || {}) },
+      // replaceEnv: use exactly opts.env (don't inherit our process env). Used for
+      // `docker compose` so our own vars (PORT, ADMIN_PASSWORD, …) never leak in
+      // and override the managed project's .env.
+      env: opts.replaceEnv ? { ...(opts.env || {}) } : { ...process.env, ...(opts.env || {}) },
     });
 
     let stdout = '';
