@@ -260,6 +260,44 @@ function parseMemUsage(str) {
   return Math.round(val * (mult[unit] || 1));
 }
 
+/** Docker disk usage summary (images / containers / volumes / build cache). */
+export async function systemDf() {
+  const res = await run(
+    'docker',
+    ['system', 'df', '--format', '{{.Type}}\t{{.TotalCount}}\t{{.Active}}\t{{.Size}}\t{{.Reclaimable}}'],
+    { timeout: 20 * 1000 }
+  );
+  if (res.code !== 0) return [];
+  return res.stdout
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => {
+      const [type, total, active, size, reclaimable] = l.split('\t');
+      return { type, total, active, size, reclaimable };
+    });
+}
+
+/**
+ * Prune images to reclaim space. Default removes only dangling (untagged)
+ * images + build cache. `all: true` also removes any image not used by an
+ * existing container (running or stopped) — more aggressive.
+ */
+export async function prune({ all = false, buildCache = true } = {}) {
+  const parts = [];
+  const imgArgs = ['image', 'prune', '-f'];
+  if (all) imgArgs.push('-a');
+  let r = await run('docker', imgArgs, { timeout: 10 * 60 * 1000 });
+  parts.push((r.stdout + r.stderr).trim());
+  if (buildCache) {
+    r = await run('docker', ['builder', 'prune', '-f'], { timeout: 10 * 60 * 1000 });
+    parts.push((r.stdout + r.stderr).trim());
+  }
+  const output = parts.filter(Boolean).join('\n');
+  const reclaimed = [...output.matchAll(/Total reclaimed space:\s*([^\n]+)/g)].map((m) => m[1].trim());
+  return { output, reclaimed: reclaimed.length ? reclaimed.join(' + ') : '0B' };
+}
+
 /** Recent logs for a project (optionally a single service). */
 export async function logs(project, service, tail = 200) {
   const extra = ['logs', '--no-color', '--tail', String(tail)];

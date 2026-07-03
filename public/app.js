@@ -1026,11 +1026,13 @@ function renderUserbar() {
     <span class="whoami">${esc(currentUser.username)} <span class="role ${esc(currentUser.role)}">${esc(currentUser.role)}</span></span>
     ${admin ? '<button class="sm ghost" id="btn-users">Users</button>' : ''}
     ${admin ? '<button class="sm ghost" id="btn-sshkey">SSH key</button>' : ''}
+    ${admin ? '<button class="sm ghost" id="btn-prune">Prune</button>' : ''}
     <button class="sm ghost" id="btn-audit">Audit log</button>
     <button class="sm ghost" id="btn-pass">Password</button>
     <button class="sm ghost" id="btn-logout">Logout</button>`;
   if (admin) $('#btn-users').addEventListener('click', openUsers);
   if (admin) $('#btn-sshkey').addEventListener('click', openSshKey);
+  if (admin) $('#btn-prune').addEventListener('click', openPrune);
   $('#btn-audit').addEventListener('click', openAudit);
   $('#btn-pass').addEventListener('click', changePassword);
   $('#btn-logout').addEventListener('click', logout);
@@ -1206,6 +1208,37 @@ async function submitReset() {
 }
 $('#rp-save').addEventListener('click', submitReset);
 $('#reset-form').addEventListener('submit', (e) => { e.preventDefault(); submitReset(); });
+
+// ---------- Prune (docker GC) modal ----------
+async function openPrune() {
+  $('#prune-msg').textContent = '';
+  $('#prune-msg').className = 'msg';
+  $('#prune-out').hidden = true;
+  $('#prune-modal').hidden = false;
+  await loadPruneDf();
+}
+async function loadPruneDf() {
+  try {
+    const rows = await api.get('/api/system/disk');
+    $('#prune-df').innerHTML = rows.map((r) =>
+      `<tr><td>${esc(r.type)}</td><td>${esc(r.total)}</td><td>${esc(r.active)}</td><td>${esc(r.size)}</td><td class="muted">${esc(r.reclaimable)}</td></tr>`
+    ).join('') || '<tr><td colspan="5" class="muted">No data.</td></tr>';
+  } catch (e) { $('#prune-df').innerHTML = `<tr><td colspan="5" class="msg err">${esc(e.message)}</td></tr>`; }
+}
+$('#prune-run').addEventListener('click', async () => {
+  const all = $('#prune-all').checked;
+  if (all && !confirm('Remove ALL images not used by a container? Stopped projects will re-pull/rebuild on next start.')) return;
+  const msg = $('#prune-msg');
+  msg.className = 'msg'; msg.textContent = 'Pruning…';
+  $('#prune-run').disabled = true;
+  try {
+    const r = await api.send('POST', '/api/system/prune', { all, buildCache: $('#prune-cache').checked });
+    msg.className = 'msg ok'; msg.textContent = `Reclaimed ${r.reclaimed}.`;
+    $('#prune-out').hidden = false; $('#prune-out').textContent = r.output || '';
+    await loadPruneDf();
+  } catch (e) { msg.className = 'msg err'; msg.textContent = e.message; }
+  finally { $('#prune-run').disabled = false; }
+});
 
 // ---------- SSH key modal ----------
 async function openSshKey() {

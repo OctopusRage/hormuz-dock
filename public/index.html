@@ -151,6 +151,27 @@
       </div>
     </div>
 
+    <!-- Prune (docker GC) modal -->
+    <div id="prune-modal" class="modal" hidden>
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3>Reclaim storage</h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <div class="tab-panel">
+          <table class="audit"><thead><tr><th>Type</th><th>Total</th><th>Active</th><th>Size</th><th>Reclaimable</th></tr></thead>
+            <tbody id="prune-df"></tbody></table>
+          <label class="check"><input type="checkbox" id="prune-cache" checked /> Also clear build cache</label>
+          <label class="check"><input type="checkbox" id="prune-all" /> Aggressive — remove <b>all</b> images not used by a container (they'll re-pull/rebuild on next start)</label>
+          <pre id="prune-out" class="logs" hidden style="max-height:160px;margin-top:12px"></pre>
+        </div>
+        <div class="modal-foot">
+          <span id="prune-msg" class="msg"></span>
+          <button id="prune-run" class="danger">Prune now</button>
+        </div>
+      </div>
+    </div>
+
     <!-- SSH key modal -->
     <div id="sshkey-modal" class="modal" hidden>
       <div class="modal-box wide">
