@@ -38,6 +38,42 @@ Open http://localhost:4100
 
 Change the port with `PORT=8080 npm start`.
 
+## Run in Docker
+
+Hormuz Dock can run in a container, but because it manages the **host's** Docker,
+the setup is deliberate — a plain `docker run` will misbehave. A `Dockerfile` and
+`docker-compose.yml` are included:
+
+```bash
+mkdir -p /opt/hormuz-dock/data
+ADMIN_PASSWORD=your-strong-pass docker compose up -d --build
+```
+
+Three things in `docker-compose.yml` are required and why:
+
+1. **Docker socket** (`/var/run/docker.sock`) — how it drives the host daemon
+   (start/stop/build/stats/exec). This grants **root-equivalent control of the
+   host** to anything that can reach the app. Treat it accordingly.
+2. **Same-path data bind mount** — the data dir is mounted at an *identical
+   absolute path* inside and out (`/opt/hormuz-dock/data`), and `DATA_DIR` points
+   at it. The host daemon resolves cloned repos' **build contexts** and
+   **`./relative` bind mounts** on the host filesystem, so the path Hormuz Dock
+   clones into must exist at the same path on the host. (Verified: a project with
+   a `./html` bind mount serves correctly through the containerized instance.)
+3. **`network_mode: host`** — so the reverse proxy can reach managed apps on
+   `127.0.0.1:<published-port>` and the app's own port binds on the host. Host
+   networking is **Linux-only**; on Docker Desktop (mac/Windows) use a bridge
+   network with `extra_hosts: ["host.docker.internal:host-gateway"]` and expect
+   the `/_name` reverse proxy to need `host.docker.internal` instead of loopback.
+
+Other notes:
+
+- **Node ≥ 24** in the image (the built-in `node:sqlite` module is used unflagged).
+- **Private git repos**: uncomment the `~/.ssh` mount for SSH remotes, or use an
+  HTTPS URL with a token.
+- The container runs as **root**, so files it writes to the data volume are
+  root-owned on the host.
+
 ## How it works
 
 - **No database** — project metadata is stored in `data/db.json` (atomic writes).
@@ -65,7 +101,15 @@ Change the port with `PORT=8080 npm start`.
 
 ## Security note
 
-Hormuz Dock runs Docker and git commands on the host. It has **no authentication** —
-run it only on a trusted/internal network, behind a reverse proxy with auth, or
-bind it to localhost and access via SSH tunnel. Anyone who can reach the port can
-start/stop containers and edit env files.
+Hormuz Dock has username/password auth with **admin** and **user** roles, cookie
+sessions, and an audit log. But it also runs Docker and git on the host and offers
+a **web shell into containers** — so any authenticated account is effectively
+**root-equivalent on the host** (doubly so when run with the Docker socket
+mounted). Therefore:
+
+- Change the seeded `admin` password immediately (or set `ADMIN_PASSWORD` before
+  first run) and only hand out accounts to people you'd trust with host root.
+- There is **no HTTPS** built in — put it behind a TLS-terminating reverse proxy,
+  or bind to localhost and reach it via SSH tunnel. Run it on a trusted network.
+- The reverse-proxy `/_name` routes are intentionally **public** (they serve your
+  published apps); don't expose anything sensitive that way.

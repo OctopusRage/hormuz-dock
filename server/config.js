@@ -4,7 +4,13 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const ROOT = path.resolve(__dirname, '..');
-export const DATA_DIR = path.join(ROOT, 'data');
+// DATA_DIR can be overridden — important when running in Docker, where it must
+// be an absolute path that is IDENTICAL on the host and inside the container so
+// the host Docker daemon resolves cloned repos' build contexts / relative bind
+// mounts correctly (see docker-compose.yml).
+export const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(ROOT, 'data');
 export const REPOS_DIR = path.join(DATA_DIR, 'repos');
 export const DB_FILE = path.join(DATA_DIR, 'db.json');
 export const PORT = process.env.PORT || 4100;

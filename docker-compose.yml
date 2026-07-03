@@ -1,0 +1,41 @@
+# Run Hormuz Dock itself in Docker.
+#
+# Because Hormuz Dock manages the HOST's Docker, three things are non-negotiable
+# for it to work correctly in a container — read the comments before changing them.
+#
+#   1) It talks to the host Docker daemon via the mounted socket.
+#   2) The data dir is bind-mounted at the SAME absolute path inside and out, so
+#      the host daemon can find cloned repos' build contexts and ./relative bind
+#      mounts (the daemon resolves those paths on the HOST, not in this container).
+#   3) network_mode: host, so the reverse proxy can reach managed apps on
+#      127.0.0.1:<published-port> and Hormuz Dock's own port binds on the host.
+#      (host networking is Linux-only; see README for the Docker Desktop note.)
+#
+# First run:  mkdir -p /opt/hormuz-dock/data
+#             ADMIN_PASSWORD=your-strong-pass docker compose up -d --build
+
+services:
+  hormuz-dock:
+    build: .
+    image: hormuz-dock
+    container_name: hormuz-dock
+    restart: unless-stopped
+
+    # Host networking: proxy → 127.0.0.1:<port> works, published ports of managed
+    # apps land on the host, and PORT below binds on the host directly.
+    network_mode: host
+
+    environment:
+      - PORT=4100
+      # MUST equal the container-side mount path below (host == container path).
+      - DATA_DIR=/opt/hormuz-dock/data
+      # Change this. Only used to seed the admin on the very first run.
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-change-me}
+
+    volumes:
+      # Control the host Docker daemon (start/stop/build/stats/exec).
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Identical path host<->container — do not change one side only.
+      - /opt/hormuz-dock/data:/opt/hormuz-dock/data
+      # Optional: SSH key + known_hosts to clone private git repos over SSH.
+      # - ${HOME}/.ssh:/root/.ssh:ro
