@@ -61,6 +61,24 @@ fi
 mkdir -p "$APP_DIR" "$DATA_DIR"
 chown -R "$HORMUZ_USER":"$HORMUZ_USER" "$BASE_DIR"
 
+# --- SSH deploy key (to clone private repos over SSH) ---
+command -v ssh-keygen >/dev/null || apt-get install -y openssh-client
+HOME_DIR="$(getent passwd "$HORMUZ_USER" | cut -d: -f6)"
+SSH_DIR="$HOME_DIR/.ssh"
+sudo -u "$HORMUZ_USER" mkdir -p "$SSH_DIR"; chmod 700 "$SSH_DIR"
+if [ ! -f "$SSH_DIR/id_ed25519" ]; then
+  log "Generating SSH deploy key for $HORMUZ_USER ..."
+  sudo -u "$HORMUZ_USER" ssh-keygen -t ed25519 -N '' -f "$SSH_DIR/id_ed25519" -C "hormuz-dock@$(hostname)" >/dev/null
+fi
+if [ ! -f "$SSH_DIR/config" ]; then
+  sudo -u "$HORMUZ_USER" tee "$SSH_DIR/config" >/dev/null <<'SSHCFG'
+Host bitbucket.org github.com gitlab.com
+  StrictHostKeyChecking accept-new
+  IdentityFile ~/.ssh/id_ed25519
+SSHCFG
+  chmod 600 "$SSH_DIR/config"
+fi
+
 # --- fetch / update code ---
 if [ -d "$APP_DIR/.git" ]; then
   log "Updating existing checkout in $APP_DIR ..."
@@ -131,3 +149,8 @@ else
   echo "    Login with the admin password in $ENV_FILE"
 fi
 echo "    Put it behind HTTPS (see README) before exposing it publicly."
+echo
+log "SSH deploy key (add to your git host, or view later in Settings → SSH key):"
+echo
+cat "$SSH_DIR/id_ed25519.pub" 2>/dev/null || warn "  (public key not found at $SSH_DIR/id_ed25519.pub)"
+echo

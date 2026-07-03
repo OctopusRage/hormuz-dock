@@ -1025,10 +1025,12 @@ function renderUserbar() {
   $('#userbar').innerHTML = `
     <span class="whoami">${esc(currentUser.username)} <span class="role ${esc(currentUser.role)}">${esc(currentUser.role)}</span></span>
     ${admin ? '<button class="sm ghost" id="btn-users">Users</button>' : ''}
+    ${admin ? '<button class="sm ghost" id="btn-sshkey">SSH key</button>' : ''}
     <button class="sm ghost" id="btn-audit">Audit log</button>
     <button class="sm ghost" id="btn-pass">Password</button>
     <button class="sm ghost" id="btn-logout">Logout</button>`;
   if (admin) $('#btn-users').addEventListener('click', openUsers);
+  if (admin) $('#btn-sshkey').addEventListener('click', openSshKey);
   $('#btn-audit').addEventListener('click', openAudit);
   $('#btn-pass').addEventListener('click', changePassword);
   $('#btn-logout').addEventListener('click', logout);
@@ -1204,6 +1206,40 @@ async function submitReset() {
 }
 $('#rp-save').addEventListener('click', submitReset);
 $('#reset-form').addEventListener('submit', (e) => { e.preventDefault(); submitReset(); });
+
+// ---------- SSH key modal ----------
+async function openSshKey() {
+  $('#sshkey-msg').textContent = '';
+  $('#sshkey-msg').className = 'msg';
+  $('#sshkey-modal').hidden = false;
+  await loadSshKey();
+}
+async function loadSshKey() {
+  try {
+    const d = await api.get('/api/ssh-key');
+    $('#sshkey-text').value = d.publicKey || '';
+    $('#sshkey-empty').hidden = d.exists;
+    $('#sshkey-copy').hidden = !d.exists;
+    $('#sshkey-gen').hidden = d.exists;
+  } catch (e) {
+    $('#sshkey-msg').className = 'msg err';
+    $('#sshkey-msg').textContent = e.message;
+  }
+}
+$('#sshkey-gen').addEventListener('click', async () => {
+  const msg = $('#sshkey-msg');
+  msg.className = 'msg';
+  msg.textContent = 'Generating…';
+  try { await api.send('POST', '/api/ssh-key'); msg.textContent = ''; await loadSshKey(); }
+  catch (e) { msg.className = 'msg err'; msg.textContent = e.message; }
+});
+$('#sshkey-copy').addEventListener('click', async () => {
+  const text = $('#sshkey-text').value;
+  try { await navigator.clipboard.writeText(text); }
+  catch { $('#sshkey-text').select(); document.execCommand('copy'); }
+  $('#sshkey-msg').className = 'msg ok';
+  $('#sshkey-msg').textContent = 'Copied to clipboard.';
+});
 
 // ---------- Audit log modal ----------
 async function openAudit() {

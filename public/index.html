@@ -151,6 +151,33 @@
       </div>
     </div>
 
+    <!-- SSH key modal -->
+    <div id="sshkey-modal" class="modal" hidden>
+      <div class="modal-box wide">
+        <div class="modal-head">
+          <h3>SSH deploy key</h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <div class="tab-panel">
+          <p class="hint" style="margin-top:0">
+            Add this <b>public</b> key to your git host as a read-only deploy key
+            (Bitbucket: Repo settings → Access keys · GitHub: Settings → Deploy keys),
+            then create projects with an SSH URL like
+            <code>git@bitbucket.org:team/repo.git</code>.
+          </p>
+          <textarea id="sshkey-text" readonly spellcheck="false" placeholder="No key yet."></textarea>
+          <div id="sshkey-empty" class="muted" hidden style="padding:8px 0">
+            No SSH key found on the server yet.
+          </div>
+        </div>
+        <div class="modal-foot">
+          <span id="sshkey-msg" class="msg"></span>
+          <button id="sshkey-gen" class="ghost" hidden>Generate key</button>
+          <button id="sshkey-copy" class="primary" hidden>Copy</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Audit log modal -->
     <div id="audit-modal" class="modal" hidden>
       <div class="modal-box wide">

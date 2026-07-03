@@ -9,6 +9,7 @@ import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
 import logsRouter from './routes/logs.js';
 import * as auth from './auth.js';
+import * as ssh from './ssh.js';
 import { auditMiddleware } from './audit.js';
 import { setupTerminal, handleExecUpgrade, EXEC_PATH } from './terminal.js';
 import { proxyMiddleware, handleProxyUpgrade } from './proxy.js';
@@ -45,6 +46,13 @@ app.use(auditMiddleware);
 app.use('/api/projects', projectsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/logs', logsRouter);
+
+// SSH deploy key (admin) — view / generate the key to add to a git host.
+app.get('/api/ssh-key', auth.requireAdmin, (req, res) => res.json(ssh.readPublicKey()));
+app.post('/api/ssh-key', auth.requireAdmin, async (req, res) => {
+  try { res.json(await ssh.generateKey()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 // Host-level resource summary (docker system + host cpu count).
 app.get('/api/system', async (req, res) => {
