@@ -1,7 +1,10 @@
 node_modules/
 data/repos/
+data/static/
 data/db.json
 data/db.json.tmp
+data/static.json
+data/static.json.tmp
 data/apphub.db
 data/apphub.db-*
 *.log

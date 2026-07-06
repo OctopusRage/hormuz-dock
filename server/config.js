@@ -15,6 +15,12 @@ export const REPOS_DIR = path.join(DATA_DIR, 'repos');
 export const DB_FILE = path.join(DATA_DIR, 'db.json');
 export const PORT = process.env.PORT || 4100;
 
+// Static sites live in their own store and directory, and are served directly
+// by this Node process (no Docker) under STATIC_PREFIX/<slug>/.
+export const STATIC_DIR = path.join(DATA_DIR, 'static');
+export const STATIC_DB_FILE = path.join(DATA_DIR, 'static.json');
+export const STATIC_PREFIX = '/_static_';
+
 // Compose files we accept, in order of preference. docker-compose.yml is required
 // by spec but we tolerate the common alternatives too.
 export const COMPOSE_FILES = [

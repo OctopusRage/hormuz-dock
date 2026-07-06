@@ -184,6 +184,7 @@ button.sm { padding: 7px 13px; font-size: 12.5px; border-radius: 8px; }
 .mseg.free span { text-shadow: none; }
 
 .projects { margin-top: 8px; }
+.projects.statics { margin-top: 34px; padding-top: 26px; border-top: 1px solid var(--border); }
 .projects-head { display: flex; justify-content: space-between; align-items: center; }
 .ph-left { display: flex; align-items: center; gap: 14px; }
 .projects-head h2 { font-size: 17px; letter-spacing: -0.01em; }

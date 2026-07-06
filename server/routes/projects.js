@@ -6,7 +6,6 @@ import * as git from '../git.js';
 import * as docker from '../docker.js';
 import * as envlib from '../env.js';
 import * as filelib from '../files.js';
-import * as staticlib from '../static.js';
 import * as oplog from '../oplog.js';
 
 const router = express.Router();
@@ -99,46 +98,31 @@ router.get(
 router.post(
   '/',
   h(async (req, res) => {
-    const { name, gitUrl, branch, publishDir } = req.body || {};
-    const type = req.body?.type === 'static' ? 'static' : 'compose';
-    const source = req.body?.source === 'upload' ? 'upload' : 'git';
+    const { name, gitUrl, branch } = req.body || {};
     if (!name) return res.status(400).json({ error: 'name is required' });
-    if (source === 'git' && !gitUrl) return res.status(400).json({ error: 'gitUrl is required' });
+    if (!gitUrl) return res.status(400).json({ error: 'gitUrl is required' });
     const slug = store.slugify(name);
     if (!slug) return res.status(400).json({ error: 'name produces an empty slug' });
     if (store.findBySlug(slug)) {
       return res.status(409).json({ error: `A project named "${slug}" already exists` });
     }
 
-    const project = await store.createProject({ name, gitUrl, branch, type, source, publishDir });
+    const project = await store.createProject({ name, gitUrl, branch });
 
-    // Populate the project dir: clone (git) or create empty (upload).
-    if (source === 'git') {
-      try {
-        await git.clone(gitUrl, project.dir, branch);
-      } catch (err) {
-        await store.deleteProject(project.id);
-        return res.status(400).json({ error: err.message });
-      }
-    } else {
-      fs.mkdirSync(project.dir, { recursive: true });
+    try {
+      await git.clone(gitUrl, project.dir, branch);
+    } catch (err) {
+      await store.deleteProject(project.id);
+      return res.status(400).json({ error: err.message });
     }
 
-    let composeFile;
-    if (type === 'static') {
-      // Generate an nginx compose that serves the static files — no user compose needed.
-      const pub = publishDir?.trim() || (source === 'git' ? staticlib.detectPublishDir(project.dir) : '.');
-      composeFile = staticlib.scaffoldStatic(project.dir, pub);
-      await store.updateProject(project.id, { publishDir: pub });
-    } else {
-      composeFile = git.detectComposeFile(project.dir);
-      if (!composeFile) {
-        await git.removeDir(project.dir);
-        await store.deleteProject(project.id);
-        return res.status(400).json({
-          error: 'No docker-compose.yml found in the repository. A compose file is required.',
-        });
-      }
+    const composeFile = git.detectComposeFile(project.dir);
+    if (!composeFile) {
+      await git.removeDir(project.dir);
+      await store.deleteProject(project.id);
+      return res.status(400).json({
+        error: 'No docker-compose.yml found in the repository. A compose file is required.',
+      });
     }
 
     await store.updateProject(project.id, { composeFile });

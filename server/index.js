@@ -5,9 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { PORT, ROOT } from './config.js';
 import { run } from './exec.js';
 import projectsRouter from './routes/projects.js';
+import staticSitesRouter from './routes/static.js';
 import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
 import logsRouter from './routes/logs.js';
+import { staticMiddleware } from './staticserve.js';
 import * as auth from './auth.js';
 import * as ssh from './ssh.js';
 import * as docker from './docker.js';
@@ -30,7 +32,11 @@ if (seeded) {
 
 const app = express();
 
-// Reverse proxy for configured routes (e.g. /_chat -> :9999). Runs FIRST, before
+// Published static sites (/_static_/<slug>/…) served straight off disk — no
+// Docker. Runs FIRST, before auth, so they're publicly reachable.
+app.use(staticMiddleware);
+
+// Reverse proxy for configured routes (e.g. /_chat -> :9999). Runs before
 // body parsing and auth, so proxied apps stay publicly reachable.
 app.use(proxyMiddleware);
 
@@ -45,6 +51,7 @@ app.use('/api', auth.requireAuth);
 app.use(auditMiddleware);
 
 app.use('/api/projects', projectsRouter);
+app.use('/api/static-sites', staticSitesRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/logs', logsRouter);
 

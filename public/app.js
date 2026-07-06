@@ -345,63 +345,193 @@ document.addEventListener('click', (e) => {
   renderProjects();
 });
 
-// ---------- New project ----------
-function newFormSync() {
-  const type = $('#f-type').value;
-  const source = $('#f-source').value;
-  const staticMode = type === 'static';
-  const upload = staticMode && source === 'upload';
-  $('#f-source-wrap').hidden = !staticMode;
-  $('#f-pub-wrap').hidden = !(staticMode && !upload);
-  $('#f-git-wrap').hidden = upload;
-  $('#f-branch-wrap').hidden = upload;
-  $('#create-btn').textContent = upload ? 'Create' : staticMode ? 'Clone & serve' : 'Clone & Add';
-  $('#f-hint').innerHTML = !staticMode
-    ? 'The repo is cloned and must contain a <code>docker-compose.yml</code>.'
-    : upload
-    ? 'Creates an empty static site — then upload a zip or HTML files in <b>Files</b>.'
-    : 'Clones the repo and serves it with nginx (no Dockerfile needed). Pick the publish dir or leave blank to auto-detect.';
-}
+// ---------- New project (Docker Compose) ----------
 function openNewProject() {
   $('#new-form').reset();
   $('#new-msg').textContent = '';
   $('#new-msg').className = 'msg';
-  newFormSync();
   $('#new-modal').hidden = false;
   $('#f-name').focus();
 }
 $('#open-new').addEventListener('click', openNewProject);
-$('#f-type').addEventListener('change', newFormSync);
-$('#f-source').addEventListener('change', newFormSync);
 
 $('#new-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const msg = $('#new-msg');
   const btn = $('#create-btn');
-  const type = $('#f-type').value;
-  const source = type === 'static' ? $('#f-source').value : 'git';
   const body = {
     name: $('#f-name').value.trim(),
-    type,
-    source,
-    gitUrl: source === 'git' ? $('#f-git').value.trim() : undefined,
-    branch: source === 'git' ? $('#f-branch').value.trim() || undefined : undefined,
-    publishDir: type === 'static' && source === 'git' ? $('#f-pub').value.trim() || undefined : undefined,
+    gitUrl: $('#f-git').value.trim(),
+    branch: $('#f-branch').value.trim() || undefined,
   };
   btn.disabled = true;
   msg.className = 'msg';
-  msg.textContent = source === 'upload' ? 'Creating…' : 'Cloning…';
+  msg.textContent = 'Cloning…';
   try {
-    const created = await api.send('POST', '/api/projects', body);
+    await api.send('POST', '/api/projects', body);
     await loadProjects();
     $('#new-modal').hidden = true;
-    // For upload static sites, jump straight to Files so they can add content.
-    if (source === 'upload') openFiles(created);
   } catch (err) {
     msg.className = 'msg err';
     msg.textContent = err.message;
   } finally {
     btn.disabled = false;
+  }
+});
+
+// ---------- Static sites (served directly, no Docker) ----------
+let statics = [];
+
+function slugPreview(name) {
+  return String(name).toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+}
+
+async function loadStatics() {
+  try {
+    statics = await api.get('/api/static-sites');
+  } catch {
+    statics = [];
+  }
+  renderStatics();
+}
+
+function renderStatics() {
+  const grid = $('#statics');
+  $('#statics-empty').hidden = statics.length > 0;
+  grid.innerHTML = statics.map(staticCard).join('');
+}
+
+function staticCard(s) {
+  const pub = s.publishDir && s.publishDir !== '.' ? s.publishDir : '(root)';
+  return `
+  <div class="project static-card" data-sid="${s.id}">
+    <div class="project-top">
+      <div>
+        <h3 class="project-name">${esc(s.name)}</h3>
+        <div class="project-git">${s.source === 'git' ? esc(s.gitUrl) + (s.branch ? ' @ ' + esc(s.branch) : '') : 'uploaded files'}</div>
+        <div class="ports-line">
+          <span class="ports-label">URL:</span>
+          <a class="route" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)} ↗</a>
+        </div>
+        <div class="ports-line"><span class="ports-label">Publish:</span> <code>${esc(pub)}</code></div>
+      </div>
+      <span class="badge running">live</span>
+    </div>
+    <div class="actions">
+      <button class="sm primary" data-sact="open" title="Open the site">Open ↗</button>
+      <button class="sm ghost" data-sact="files">Files</button>
+      ${s.source === 'git' ? '<button class="sm ghost" data-sact="pull">Pull latest</button>' : ''}
+      <div class="menu-wrap">
+        <button class="sm ghost menu-btn" data-menu aria-label="More actions">⋯</button>
+        <div class="menu" hidden>
+          <button data-sact="publish">Set publish dir</button>
+          <button data-sact="copy">Copy URL</button>
+          <div class="menu-sep"></div>
+          <button data-sact="delete" class="danger-item">Delete site</button>
+        </div>
+      </div>
+    </div>
+    <div class="msg" data-smsg></div>
+  </div>`;
+}
+
+function openNewStatic() {
+  $('#new-static-form').reset();
+  $('#new-static-msg').textContent = '';
+  $('#new-static-msg').className = 'msg';
+  staticFormSync();
+  $('#s-url-preview').innerHTML = 'URL: <code>/_static_/…</code>';
+  $('#new-static-modal').hidden = false;
+  $('#s-name').focus();
+}
+function staticFormSync() {
+  const git = $('#s-source').value === 'git';
+  $('#s-git-wrap').hidden = !git;
+  $('#s-branch-wrap').hidden = !git;
+  $('#create-static-btn').textContent = git ? 'Clone & serve' : 'Create';
+  $('#s-hint').innerHTML = git
+    ? 'Clones the repo and serves it directly (no Docker). Leave publish dir blank to auto-detect (public/dist/_site…).'
+    : 'Creates an empty site — after that, upload a <b>zip</b> or drop HTML files in <b>Files</b>.';
+}
+$('#open-new-static').addEventListener('click', openNewStatic);
+$('#s-source').addEventListener('change', staticFormSync);
+$('#s-name').addEventListener('input', () => {
+  const slug = slugPreview($('#s-name').value);
+  $('#s-url-preview').innerHTML = `URL: <code>/_static_/${esc(slug) || '…'}/</code>`;
+});
+
+$('#new-static-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('#new-static-msg');
+  const btn = $('#create-static-btn');
+  const source = $('#s-source').value;
+  const body = {
+    name: $('#s-name').value.trim(),
+    source,
+    gitUrl: source === 'git' ? $('#s-git').value.trim() : undefined,
+    branch: source === 'git' ? $('#s-branch').value.trim() || undefined : undefined,
+    publishDir: $('#s-pub').value.trim() || undefined,
+  };
+  btn.disabled = true;
+  msg.className = 'msg';
+  msg.textContent = source === 'git' ? 'Cloning…' : 'Creating…';
+  try {
+    const created = await api.send('POST', '/api/static-sites', body);
+    await loadStatics();
+    $('#new-static-modal').hidden = true;
+    // Uploaded sites start empty — jump into Files so they can add content.
+    if (source === 'upload') openFiles(created, null, '/api/static-sites');
+  } catch (err) {
+    msg.className = 'msg err';
+    msg.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// Static-site card actions.
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-sact]');
+  if (!btn) return;
+  const inMenu = btn.closest('.menu');
+  if (inMenu) inMenu.hidden = true;
+  const card = btn.closest('.static-card');
+  const site = statics.find((s) => s.id === card.dataset.sid);
+  if (!site) return;
+  const act = btn.dataset.sact;
+  const msg = $('[data-smsg]', card);
+  msg.className = 'msg';
+  msg.textContent = '';
+
+  if (act === 'open') return window.open(site.url, '_blank', 'noopener');
+  if (act === 'files') return openFiles(site, null, '/api/static-sites');
+  if (act === 'copy') {
+    const url = location.origin + site.url;
+    try { await navigator.clipboard.writeText(url); msg.className = 'msg ok'; msg.textContent = 'Copied ' + url; }
+    catch { msg.className = 'msg err'; msg.textContent = url; }
+    return;
+  }
+  if (act === 'publish') {
+    const pub = prompt('Publish directory (folder containing index.html; "." = site root):', site.publishDir || '.');
+    if (pub == null) return;
+    try {
+      await api.send('PUT', `/api/static-sites/${site.id}/publish`, { publishDir: pub.trim() || '.' });
+      await loadStatics();
+    } catch (err) { msg.className = 'msg err'; msg.textContent = err.message; }
+    return;
+  }
+  if (act === 'pull') {
+    msg.textContent = 'Pulling…';
+    try { await api.send('POST', `/api/static-sites/${site.id}/pull`); msg.className = 'msg ok'; msg.textContent = 'Pulled latest.'; }
+    catch (err) { msg.className = 'msg err'; msg.textContent = err.message; }
+    return;
+  }
+  if (act === 'delete') {
+    if (!confirm(`Delete "${site.name}"? This removes its files and takes ${site.url} offline.`)) return;
+    try { await api.send('DELETE', `/api/static-sites/${site.id}`); await loadStatics(); }
+    catch (err) { msg.className = 'msg err'; msg.textContent = err.message; }
+    return;
   }
 });
 
@@ -477,11 +607,15 @@ $('#env-save').addEventListener('click', async () => {
 });
 
 // ---------- Files manager modal ----------
+// Reused by both Docker projects and static sites; filesApiBase selects which
+// REST collection the file endpoints live under.
 let filesProject = null;
+let filesApiBase = '/api/projects';
 let filesCurrent = null; // path of the file open in the editor
 
-async function openFiles(project, missing) {
+async function openFiles(project, missing, apiBase = '/api/projects') {
   filesProject = project;
+  filesApiBase = apiBase;
   filesCurrent = null;
   $('#files-title').textContent = project.name;
   $('#files-msg').textContent = '';
@@ -509,7 +643,7 @@ async function openFiles(project, missing) {
 
 async function loadFilesList() {
   try {
-    const d = await api.get(`/api/projects/${filesProject.id}/files`);
+    const d = await api.get(`${filesApiBase}/${filesProject.id}/files`);
     const rows = d.files.filter((f) => !f.dir);
     const dirs = d.files.filter((f) => f.dir);
     $('#files-list').innerHTML =
@@ -528,7 +662,7 @@ async function loadFilesList() {
 
 async function openFileInEditor(path) {
   try {
-    const d = await api.get(`/api/projects/${filesProject.id}/file?path=${encodeURIComponent(path)}`);
+    const d = await api.get(`${filesApiBase}/${filesProject.id}/file?path=${encodeURIComponent(path)}`);
     filesCurrent = path;
     $('#files-path').textContent = `${path} · ${fmtBytes(d.size)} · mode ${d.mode}`;
     if (d.binary) {
@@ -555,12 +689,14 @@ async function saveCurrentFile() {
   msg.className = 'msg';
   msg.textContent = 'Saving…';
   try {
-    await api.send('PUT', `/api/projects/${filesProject.id}/file`, {
+    await api.send('PUT', `${filesApiBase}/${filesProject.id}/file`, {
       path: filesCurrent,
       content: $('#files-textarea').value,
     });
     msg.className = 'msg ok';
-    msg.textContent = 'Saved (mode 0644). Restart/rebuild to apply.';
+    msg.textContent = filesApiBase.includes('static')
+      ? 'Saved. Live immediately.'
+      : 'Saved (mode 0644). Restart/rebuild to apply.';
     await loadFilesList();
   } catch (e) {
     msg.className = 'msg err';
@@ -572,7 +708,7 @@ async function newFile(defaultName) {
   const name = prompt('New file path (relative to the project):', defaultName || '');
   if (!name) return;
   try {
-    await api.send('PUT', `/api/projects/${filesProject.id}/file`, { path: name.trim(), content: '' });
+    await api.send('PUT', `${filesApiBase}/${filesProject.id}/file`, { path: name.trim(), content: '' });
     $('#files-banner').hidden = true;
     await loadFilesList();
     await openFileInEditor(name.trim());
@@ -598,7 +734,7 @@ $('#files-zip').addEventListener('change', async (e) => {
       r.onerror = reject;
       r.readAsDataURL(file);
     });
-    await api.send('POST', `/api/projects/${filesProject.id}/unzip`, { contentBase64: b64 });
+    await api.send('POST', `${filesApiBase}/${filesProject.id}/unzip`, { contentBase64: b64 });
     msg.className = 'msg ok';
     msg.textContent = `Extracted ${file.name}.`;
     $('#files-banner').hidden = true;
@@ -626,7 +762,7 @@ $('#files-upload').addEventListener('change', async (e) => {
       r.onerror = reject;
       r.readAsDataURL(file);
     });
-    await api.send('PUT', `/api/projects/${filesProject.id}/file`, { path: name.trim(), contentBase64: b64 });
+    await api.send('PUT', `${filesApiBase}/${filesProject.id}/file`, { path: name.trim(), contentBase64: b64 });
     msg.className = 'msg ok';
     msg.textContent = `Uploaded ${name.trim()}.`;
     $('#files-banner').hidden = true;
@@ -647,7 +783,7 @@ $('#files-list').addEventListener('click', async (e) => {
     e.stopPropagation();
     if (!confirm(`Delete "${del.dataset.del}"?`)) return;
     try {
-      await api.send('DELETE', `/api/projects/${filesProject.id}/file?path=${encodeURIComponent(del.dataset.del)}`);
+      await api.send('DELETE', `${filesApiBase}/${filesProject.id}/file?path=${encodeURIComponent(del.dataset.del)}`);
       if (filesCurrent === del.dataset.del) { filesCurrent = null; $('#files-textarea').hidden = true; $('#files-save').hidden = true; $('#files-path').textContent = 'Select a file to view or edit.'; }
       await loadFilesList();
     } catch (er) { $('#files-msg').className = 'msg err'; $('#files-msg').textContent = er.message; }
@@ -1354,6 +1490,7 @@ async function initApp() {
   window.__ncpu = s.ncpu || 1;
   await loadSystem();
   await loadProjects();
+  await loadStatics();
   await refreshStats();
   statsTimer = setInterval(refreshStats, 4000);
   setInterval(loadSystem, 10000);
