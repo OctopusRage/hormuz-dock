@@ -55,15 +55,18 @@ export function findBySlug(slug) {
   return state.projects.find((p) => p.slug === slug) || null;
 }
 
-export async function createProject({ name, gitUrl, branch }) {
+export async function createProject({ name, gitUrl, branch, type, source, publishDir }) {
   const slug = slugify(name);
   const id = crypto.randomUUID();
   const project = {
     id,
     name,
     slug,
-    gitUrl,
+    gitUrl: gitUrl || null,
     branch: branch || null,
+    type: type || 'compose', // 'compose' | 'static'
+    source: source || (gitUrl ? 'git' : 'upload'),
+    publishDir: publishDir || null,
     dir: path.join(REPOS_DIR, slug),
     composeFile: null,
     routes: [],

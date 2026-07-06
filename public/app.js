@@ -346,31 +346,57 @@ document.addEventListener('click', (e) => {
 });
 
 // ---------- New project ----------
+function newFormSync() {
+  const type = $('#f-type').value;
+  const source = $('#f-source').value;
+  const staticMode = type === 'static';
+  const upload = staticMode && source === 'upload';
+  $('#f-source-wrap').hidden = !staticMode;
+  $('#f-pub-wrap').hidden = !(staticMode && !upload);
+  $('#f-git-wrap').hidden = upload;
+  $('#f-branch-wrap').hidden = upload;
+  $('#create-btn').textContent = upload ? 'Create' : staticMode ? 'Clone & serve' : 'Clone & Add';
+  $('#f-hint').innerHTML = !staticMode
+    ? 'The repo is cloned and must contain a <code>docker-compose.yml</code>.'
+    : upload
+    ? 'Creates an empty static site — then upload a zip or HTML files in <b>Files</b>.'
+    : 'Clones the repo and serves it with nginx (no Dockerfile needed). Pick the publish dir or leave blank to auto-detect.';
+}
 function openNewProject() {
   $('#new-form').reset();
   $('#new-msg').textContent = '';
   $('#new-msg').className = 'msg';
+  newFormSync();
   $('#new-modal').hidden = false;
   $('#f-name').focus();
 }
 $('#open-new').addEventListener('click', openNewProject);
+$('#f-type').addEventListener('change', newFormSync);
+$('#f-source').addEventListener('change', newFormSync);
 
 $('#new-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const msg = $('#new-msg');
   const btn = $('#create-btn');
+  const type = $('#f-type').value;
+  const source = type === 'static' ? $('#f-source').value : 'git';
   const body = {
     name: $('#f-name').value.trim(),
-    gitUrl: $('#f-git').value.trim(),
-    branch: $('#f-branch').value.trim() || undefined,
+    type,
+    source,
+    gitUrl: source === 'git' ? $('#f-git').value.trim() : undefined,
+    branch: source === 'git' ? $('#f-branch').value.trim() || undefined : undefined,
+    publishDir: type === 'static' && source === 'git' ? $('#f-pub').value.trim() || undefined : undefined,
   };
   btn.disabled = true;
   msg.className = 'msg';
-  msg.textContent = 'Cloning repository…';
+  msg.textContent = source === 'upload' ? 'Creating…' : 'Cloning…';
   try {
-    await api.send('POST', '/api/projects', body);
+    const created = await api.send('POST', '/api/projects', body);
     await loadProjects();
-    $('#new-modal').hidden = true; // close on success
+    $('#new-modal').hidden = true;
+    // For upload static sites, jump straight to Files so they can add content.
+    if (source === 'upload') openFiles(created);
   } catch (err) {
     msg.className = 'msg err';
     msg.textContent = err.message;
@@ -558,6 +584,32 @@ async function newFile(defaultName) {
 
 $('#files-save').addEventListener('click', saveCurrentFile);
 $('#files-new').addEventListener('click', () => newFile());
+$('#files-zip-btn').addEventListener('click', () => $('#files-zip').click());
+$('#files-zip').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const msg = $('#files-msg');
+  msg.className = 'msg';
+  msg.textContent = 'Uploading & extracting…';
+  try {
+    const b64 = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1]);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+    await api.send('POST', `/api/projects/${filesProject.id}/unzip`, { contentBase64: b64 });
+    msg.className = 'msg ok';
+    msg.textContent = `Extracted ${file.name}.`;
+    $('#files-banner').hidden = true;
+    await loadFilesList();
+  } catch (err) {
+    msg.className = 'msg err';
+    msg.textContent = err.message;
+  } finally {
+    e.target.value = '';
+  }
+});
 $('#files-upload-btn').addEventListener('click', () => $('#files-upload').click());
 $('#files-upload').addEventListener('change', async (e) => {
   const file = e.target.files[0];

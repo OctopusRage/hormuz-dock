@@ -63,6 +63,7 @@ chown -R "$HORMUZ_USER":"$HORMUZ_USER" "$BASE_DIR"
 
 # --- SSH deploy key (to clone private repos over SSH) ---
 command -v ssh-keygen >/dev/null || apt-get install -y openssh-client
+command -v unzip >/dev/null || apt-get install -y unzip
 HOME_DIR="$(getent passwd "$HORMUZ_USER" | cut -d: -f6)"
 SSH_DIR="$HOME_DIR/.ssh"
 sudo -u "$HORMUZ_USER" mkdir -p "$SSH_DIR"; chmod 700 "$SSH_DIR"

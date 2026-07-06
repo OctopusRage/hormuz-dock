@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { run } from './exec.js';
 
 const EXCLUDE = new Set(['.git', 'node_modules']);
 const MAX_ENTRIES = 800;
@@ -81,6 +82,20 @@ export async function writeFile(project, rel, { content, contentBase64 }) {
   await fsp.chmod(target, 0o644);
   const st = fs.statSync(target);
   return { path: rel, size: st.size, mode: '644' };
+}
+
+/** Extract a base64 zip into a project-relative dir (default project root). */
+export async function extractZip(project, base64, targetRel = '.') {
+  const target = resolveInProject(project, targetRel);
+  await fsp.mkdir(target, { recursive: true });
+  const tmp = path.join(project.dir, '.hormuz-upload.zip');
+  await fsp.writeFile(tmp, Buffer.from(base64, 'base64'));
+  const res = await run('unzip', ['-o', tmp, '-d', target], { timeout: 3 * 60 * 1000 });
+  await fsp.rm(tmp, { force: true });
+  if (res.code !== 0) {
+    throw new Error('unzip failed (is `unzip` installed?): ' + (res.stderr || res.stdout).trim());
+  }
+  return { ok: true };
 }
 
 /** Delete a file or (empty/non-empty) directory within the project. */

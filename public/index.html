@@ -67,15 +67,35 @@
             <label class="field-label">Project name</label>
             <input id="f-name" placeholder="e.g. My API" required />
           </div>
-          <div>
-            <label class="field-label">Git URL</label>
-            <input id="f-git" placeholder="git@bitbucket.org:team/repo.git" required />
+          <div class="cu-grid">
+            <div>
+              <label class="field-label">Type</label>
+              <select id="f-type">
+                <option value="compose" selected>Docker Compose</option>
+                <option value="static">Static site (docs / HTML)</option>
+              </select>
+            </div>
+            <div id="f-source-wrap" hidden>
+              <label class="field-label">Source</label>
+              <select id="f-source">
+                <option value="git" selected>Git repo</option>
+                <option value="upload">Upload (zip / files)</option>
+              </select>
+            </div>
           </div>
-          <div>
+          <div id="f-git-wrap">
+            <label class="field-label">Git URL</label>
+            <input id="f-git" placeholder="git@bitbucket.org:team/repo.git" />
+          </div>
+          <div id="f-branch-wrap">
             <label class="field-label">Branch <span class="opt">(optional)</span></label>
             <input id="f-branch" placeholder="defaults to the repo's default branch" />
           </div>
-          <p class="hint" style="margin:0">
+          <div id="f-pub-wrap" hidden>
+            <label class="field-label">Publish directory <span class="opt">(optional)</span></label>
+            <input id="f-pub" placeholder="auto-detect (public/dist/_site), or . for root" />
+          </div>
+          <p class="hint" id="f-hint" style="margin:0">
             The repo is cloned and must contain a <code>docker-compose.yml</code>.
           </p>
         </form>
@@ -279,7 +299,9 @@
           <div class="shell-controls">
             <button id="files-new" class="sm ghost">New file</button>
             <button id="files-upload-btn" class="sm ghost">Upload</button>
+            <button id="files-zip-btn" class="sm ghost">Upload ZIP</button>
             <input id="files-upload" type="file" hidden />
+            <input id="files-zip" type="file" accept=".zip" hidden />
             <button class="close" data-close>&times;</button>
           </div>
         </div>
