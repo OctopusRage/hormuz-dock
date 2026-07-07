@@ -5,6 +5,10 @@ data/db.json
 data/db.json.tmp
 data/static.json
 data/static.json.tmp
+data/secure-env.json
+data/secure-env.json.tmp
+data/secure.key
+**/.env.hormuz-ref
 data/apphub.db
 data/apphub.db-*
 *.log

@@ -2,6 +2,51 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { run } from './exec.js';
 import { OVERRIDE_FILE } from './config.js';
+import * as secureEnv from './secure-env.js';
+
+// While a compose `up` runs we swap @secure references in .env for the real
+// secrets (so containers get them), keeping a crash-safe backup of the
+// reference version, then restore it. Secrets never persist in the readable .env.
+const REF_BACKUP = '.env.hormuz-ref';
+
+async function withResolvedSecrets(project, fn) {
+  const envFile = path.join(project.dir, '.env');
+  let raw;
+  try { raw = fs.readFileSync(envFile, 'utf8'); } catch { return fn(); } // no .env
+  const { changed, resolved, missing } = secureEnv.resolveEnvText(raw);
+  if (missing.length) {
+    const err = new Error(
+      'Unknown secure-env reference(s): ' + missing.join(', ') +
+        '. An admin must define them in Secure env first.'
+    );
+    err.status = 409;
+    throw err;
+  }
+  if (!changed) return fn();
+  const backup = path.join(project.dir, REF_BACKUP);
+  fs.writeFileSync(backup, raw, { mode: 0o600 }); // reference version (crash-safe)
+  fs.writeFileSync(envFile, resolved, { mode: 0o600 }); // real secrets, briefly
+  try {
+    return await fn();
+  } finally {
+    fs.writeFileSync(envFile, raw, { mode: 0o644 }); // back to references
+    try { fs.rmSync(backup, { force: true }); } catch { /* ignore */ }
+  }
+}
+
+/** On boot, restore any .env left holding real secrets by a crash mid-`up`. */
+export function recoverResolvedEnv(projects) {
+  for (const p of projects || []) {
+    const backup = path.join(p.dir, REF_BACKUP);
+    try {
+      if (!fs.existsSync(backup)) continue;
+      fs.copyFileSync(backup, path.join(p.dir, '.env'));
+      fs.chmodSync(path.join(p.dir, '.env'), 0o644);
+      fs.rmSync(backup, { force: true });
+      console.log(`Recovered .env references for ${p.slug} after an interrupted start`);
+    } catch { /* ignore */ }
+  }
+}
 
 export function overridePath(project) {
   return path.join(project.dir, OVERRIDE_FILE);
@@ -88,13 +133,15 @@ export async function missingBindFiles(project) {
 }
 
 export async function up(project, { build = false, onData } = {}) {
-  const args = ['up', '-d', '--remove-orphans'];
-  if (build) args.push('--build'); // rebuild images from source before recreating
-  const res = await compose(project, args, { onData });
-  if (res.code !== 0) {
-    throw new Error(res.stderr.trim() || res.stdout.trim() || 'compose up failed');
-  }
-  return res.stdout + res.stderr;
+  return withResolvedSecrets(project, async () => {
+    const args = ['up', '-d', '--remove-orphans'];
+    if (build) args.push('--build'); // rebuild images from source before recreating
+    const res = await compose(project, args, { onData });
+    if (res.code !== 0) {
+      throw new Error(res.stderr.trim() || res.stdout.trim() || 'compose up failed');
+    }
+    return res.stdout + res.stderr;
+  });
 }
 
 export async function stop(project, { onData } = {}) {

@@ -6,9 +6,11 @@ import { PORT, ROOT } from './config.js';
 import { run } from './exec.js';
 import projectsRouter from './routes/projects.js';
 import staticSitesRouter from './routes/static.js';
+import secureEnvRouter from './routes/secure-env.js';
 import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
 import logsRouter from './routes/logs.js';
+import * as store from './store.js';
 import { staticMiddleware } from './staticserve.js';
 import * as auth from './auth.js';
 import * as ssh from './ssh.js';
@@ -29,6 +31,9 @@ if (seeded) {
   console.log(' Change it after logging in (or set ADMIN_PASSWORD before first run).');
   console.log('=========================================================');
 }
+
+// Undo any .env left holding real secrets by a crash during a previous `up`.
+docker.recoverResolvedEnv(store.listProjects());
 
 const app = express();
 
@@ -52,6 +57,7 @@ app.use(auditMiddleware);
 
 app.use('/api/projects', projectsRouter);
 app.use('/api/static-sites', staticSitesRouter);
+app.use('/api/secure-env', secureEnvRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/logs', logsRouter);
 
