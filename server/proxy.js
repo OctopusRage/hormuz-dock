@@ -33,7 +33,7 @@ proxy.on('proxyRes', (proxyRes, req) => {
 // backend's config. Reflects the requested headers, so a header the backend
 // forgot to allow can't break the preflight.
 function writePreflight(req, res) {
-  res.writeHead(204, {
+  const headers = {
     'Access-Control-Allow-Origin': req.headers.origin,
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'GET, HEAD, PUT, PATCH, POST, DELETE, OPTIONS',
@@ -42,7 +42,13 @@ function writePreflight(req, res) {
     'Access-Control-Max-Age': '600',
     Vary: 'Origin, Access-Control-Request-Headers',
     'Content-Length': '0',
-  });
+  };
+  // Private Network Access (Chrome): a public-origin page calling a server that
+  // resolves to a private/local IP is blocked unless the preflight opts in.
+  if (req.headers['access-control-request-private-network'] === 'true') {
+    headers['Access-Control-Allow-Private-Network'] = 'true';
+  }
+  res.writeHead(204, headers);
   res.end();
 }
 
