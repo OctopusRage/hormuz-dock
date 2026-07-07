@@ -184,7 +184,23 @@ button.sm { padding: 7px 13px; font-size: 12.5px; border-radius: 8px; }
 .mseg.free span { text-shadow: none; }
 
 .projects { margin-top: 8px; }
-.projects.statics { margin-top: 34px; padding-top: 26px; border-top: 1px solid var(--border); }
+
+/* Top-level tabs: Docker projects vs Static sites */
+.main-tabs { display: flex; gap: 6px; margin-top: 18px; border-bottom: 1px solid var(--border); }
+.mtab {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: 15px; font-weight: 600; letter-spacing: -0.01em;
+  padding: 10px 14px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  display: flex; align-items: center; gap: 8px;
+}
+.mtab:hover { color: var(--text); }
+.mtab.active { color: var(--text); border-bottom-color: var(--accent); }
+.tab-count {
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  background: var(--panel-2, rgba(127,127,127,0.16)); border-radius: 999px;
+  padding: 1px 8px; min-width: 18px; text-align: center;
+}
+.mtab.active .tab-count { color: var(--text); }
 .projects-head { display: flex; justify-content: space-between; align-items: center; }
 .ph-left { display: flex; align-items: center; gap: 14px; }
 .projects-head h2 { font-size: 17px; letter-spacing: -0.01em; }

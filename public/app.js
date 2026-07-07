@@ -109,7 +109,17 @@ function renderProjects() {
   const grid = $('#projects');
   $('#empty').hidden = projects.length > 0;
   grid.innerHTML = projects.map(projectCard).join('');
+  const c = $('#tab-count-docker');
+  if (c) c.textContent = projects.length || '';
 }
+
+// ---------- Top-level tabs (Docker projects / Static sites) ----------
+function switchMainTab(name) {
+  $$('.mtab').forEach((t) => t.classList.toggle('active', t.dataset.mtab === name));
+  $('#pane-docker').hidden = name !== 'docker';
+  $('#pane-static').hidden = name !== 'static';
+}
+$$('.mtab').forEach((t) => t.addEventListener('click', () => switchMainTab(t.dataset.mtab)));
 
 function projectCard(p) {
   return `
@@ -400,6 +410,8 @@ function renderStatics() {
   const grid = $('#statics');
   $('#statics-empty').hidden = statics.length > 0;
   grid.innerHTML = statics.map(staticCard).join('');
+  const c = $('#tab-count-static');
+  if (c) c.textContent = statics.length || '';
 }
 
 function staticCard(s) {
@@ -902,6 +914,9 @@ function routeRow(r) {
     <label class="strip" title="Strip the path prefix before forwarding (recommended)">
       <input type="checkbox" class="rstrip" ${r.stripPrefix !== false ? 'checked' : ''} /> strip
     </label>
+    <label class="strip" title="Fix CORS for credentialed cross-origin calls: proxy echoes the caller's Origin, adds Allow-Credentials, and answers preflight (reflecting requested headers).">
+      <input type="checkbox" class="rcors" ${r.cors ? 'checked' : ''} /> CORS
+    </label>
     <button type="button" data-del>✕</button>
   </div>`;
 }
@@ -946,6 +961,7 @@ $('#routes-save').addEventListener('click', async () => {
       slug: $('.rp', row).value.trim(),
       portRaw,
       stripPrefix: $('.rstrip', row).checked,
+      cors: $('.rcors', row).checked,
     };
   });
 
@@ -961,7 +977,7 @@ $('#routes-save').addEventListener('click', async () => {
     if (!port || port < 1 || port > 65535) {
       return failRoutes(`Enter a valid port (1–65535) for "/_${r.slug}".`);
     }
-    routes.push({ slug: r.slug, port, stripPrefix: r.stripPrefix });
+    routes.push({ slug: r.slug, port, stripPrefix: r.stripPrefix, cors: r.cors });
   }
   // Reject duplicate names client-side too.
   const names = routes.map((r) => r.slug);

@@ -40,10 +40,18 @@
         <div class="membar-track"></div>
       </section>
 
-      <section class="projects">
+      <div class="main-tabs">
+        <button class="mtab active" data-mtab="docker">
+          Docker projects <span class="tab-count" id="tab-count-docker"></span>
+        </button>
+        <button class="mtab" data-mtab="static">
+          Static sites <span class="tab-count" id="tab-count-static"></span>
+        </button>
+      </div>
+
+      <section class="projects" id="pane-docker">
         <div class="projects-head">
           <div class="ph-left">
-            <h2 class="section-title">Docker projects</h2>
             <button id="open-new" class="sm">+ New Project</button>
           </div>
           <label class="auto">
@@ -54,11 +62,11 @@
         <div id="empty" class="empty" hidden>No projects yet — click <b>+ New Project</b> to add one.</div>
       </section>
 
-      <section class="projects statics">
+      <section class="projects statics" id="pane-static" hidden>
         <div class="projects-head">
           <div class="ph-left">
-            <h2 class="section-title">Static sites <span class="opt">— served directly, no Docker</span></h2>
             <button id="open-new-static" class="sm">+ Static site</button>
+            <span class="opt">Served directly by Hormuz — no Docker.</span>
           </div>
         </div>
         <div id="statics" class="project-grid"></div>

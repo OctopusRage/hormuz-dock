@@ -501,7 +501,13 @@ router.put(
         });
       }
       if (port < 1 || port > 65535) return res.status(400).json({ error: `Invalid port ${r.port}` });
-      routes.push({ path: '/_' + slug, slug, port, stripPrefix: r.stripPrefix !== false });
+      routes.push({
+        path: '/_' + slug,
+        slug,
+        port,
+        stripPrefix: r.stripPrefix !== false,
+        cors: r.cors === true || r.cors === 'true',
+      });
     }
     // Reject duplicate paths within this project.
     const seen = new Set();

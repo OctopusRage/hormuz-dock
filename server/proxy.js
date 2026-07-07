@@ -13,6 +13,39 @@ proxy.on('error', (err, req, res) => {
   }
 });
 
+// CORS fix (opt-in per route): rewrite the backend's CORS headers on the way out
+// so credentialed cross-origin requests work. Echoes the caller's Origin and adds
+// Allow-Credentials, replacing any wildcard the backend sent (a wildcard "*" is
+// rejected by browsers for credentialed requests).
+proxy.on('proxyRes', (proxyRes, req) => {
+  if (!req.__corsFix || !req.headers.origin) return;
+  const h = proxyRes.headers;
+  delete h['access-control-allow-origin'];
+  delete h['access-control-allow-credentials'];
+  h['access-control-allow-origin'] = req.headers.origin;
+  h['access-control-allow-credentials'] = 'true';
+  h['vary'] = h['vary']
+    ? (/\borigin\b/i.test(h['vary']) ? h['vary'] : h['vary'] + ', Origin')
+    : 'Origin';
+});
+
+// Answer a CORS preflight directly at the proxy so it never depends on the
+// backend's config. Reflects the requested headers, so a header the backend
+// forgot to allow can't break the preflight.
+function writePreflight(req, res) {
+  res.writeHead(204, {
+    'Access-Control-Allow-Origin': req.headers.origin,
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Methods': 'GET, HEAD, PUT, PATCH, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers':
+      req.headers['access-control-request-headers'] || 'Authorization, Content-Type',
+    'Access-Control-Max-Age': '600',
+    Vary: 'Origin, Access-Control-Request-Headers',
+    'Content-Length': '0',
+  });
+  res.end();
+}
+
 /** Gather all configured routes across projects, longest path first. */
 function allRoutes() {
   return store
@@ -49,6 +82,16 @@ export function proxyMiddleware(req, res, next) {
   const pathname = req.url.split('?')[0];
   const route = findRoute(pathname);
   if (!route) return next();
+
+  // Opt-in CORS fix: short-circuit preflights, and flag real requests so the
+  // proxyRes handler rewrites their CORS headers.
+  if (route.cors && req.headers.origin) {
+    if (req.method === 'OPTIONS' && req.headers['access-control-request-method']) {
+      return writePreflight(req, res);
+    }
+    req.__corsFix = true;
+  }
+
   req.url = rewrite(req.url, route);
   proxy.web(req, res, { target: targetFor(route), changeOrigin: true });
 }
