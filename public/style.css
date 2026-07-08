@@ -376,6 +376,8 @@ table.audit .muted { color: var(--muted); }
 /* ---------- modal ---------- */
 [hidden] { display: none !important; }
 .modal { position: fixed; inset: 0; background: rgba(6, 9, 15, 0.66); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px; animation: fade 0.15s ease; }
+/* The secure-env picker opens on top of the Env editor modal. */
+#secure-pick-modal { z-index: 60; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 .modal-box {
   background: var(--panel);
