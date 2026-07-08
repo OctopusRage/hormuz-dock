@@ -40,6 +40,18 @@
         <div class="membar-track"></div>
       </section>
 
+      <section id="storagecard" class="card storage" hidden>
+        <div class="storage-head">
+          <span>Storage · running containers</span>
+          <span class="muted" id="storage-total"></span>
+        </div>
+        <div class="storage-body">
+          <div class="pie" id="storage-pie"></div>
+          <div class="pie-legend" id="storage-legend"></div>
+        </div>
+        <div class="storage-note muted">On-disk footprint per running container (image + writable layer; apps sharing a base image may overlap).</div>
+      </section>
+
       <div class="main-tabs">
         <button class="mtab active" data-mtab="docker">
           Docker projects <span class="tab-count" id="tab-count-docker"></span>

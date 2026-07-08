@@ -307,6 +307,50 @@ function parseMemUsage(str) {
   return Math.round(val * (mult[unit] || 1));
 }
 
+/** Parse a `docker ps -s` size string "1.09MB (virtual 210MB)" -> {rw, rootfs} bytes. */
+function parseDockerSize(s) {
+  if (!s) return { rw: 0, rootfs: 0 };
+  const unit = (u) => {
+    const map = {
+      b: 1, kb: 1e3, mb: 1e6, gb: 1e9, tb: 1e12,
+      kib: 1024, mib: 1024 ** 2, gib: 1024 ** 3, tib: 1024 ** 4,
+    };
+    return map[String(u).toLowerCase()] || 1;
+  };
+  const nums = [...s.matchAll(/([\d.]+)\s*([A-Za-z]+)/g)].map((m) => parseFloat(m[1]) * unit(m[2]));
+  const rw = nums[0] || 0;
+  const rootfs = nums[1] != null ? nums[1] : rw; // "virtual" total (image + writable)
+  return { rw: Math.round(rw), rootfs: Math.round(rootfs) };
+}
+
+/**
+ * On-disk footprint of every RUNNING container, grouped by its compose project
+ * (falls back to the container name for non-compose containers). rootfs is the
+ * container's total size incl. image layers (may overlap between apps that share
+ * a base image); rw is its unique writable layer.
+ */
+export async function storageByContainer() {
+  const res = await run(
+    'docker',
+    ['ps', '--size', '--format', '{{.Label "com.docker.compose.project"}}\t{{.Names}}\t{{.State}}\t{{.Size}}'],
+    { timeout: 30 * 1000 }
+  );
+  if (res.code !== 0) return [];
+  const groups = {};
+  for (const line of res.stdout.trim().split('\n')) {
+    if (!line.trim()) continue;
+    const [proj, name, state, size] = line.split('\t');
+    if (state !== 'running') continue;
+    const key = proj || name || 'unknown';
+    const { rw, rootfs } = parseDockerSize(size);
+    (groups[key] ||= { key, rwBytes: 0, rootfsBytes: 0, containers: 0 });
+    groups[key].rwBytes += rw;
+    groups[key].rootfsBytes += rootfs;
+    groups[key].containers += 1;
+  }
+  return Object.values(groups).sort((a, b) => b.rootfsBytes - a.rootfsBytes);
+}
+
 /** Docker disk usage summary (images / containers / volumes / build cache). */
 export async function systemDf() {
   const res = await run(

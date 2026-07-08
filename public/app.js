@@ -95,6 +95,50 @@ function renderMemoryBar() {
   el.hidden = false;
 }
 
+// ---------- Storage pie (per running container) ----------
+function nameForStorageKey(key) {
+  const p = projects.find((p) => p.slug === key);
+  return p ? p.name : key;
+}
+
+async function loadStorage() {
+  const card = $('#storagecard');
+  if (!card) return;
+  let groups;
+  try {
+    groups = (await api.get('/api/system/storage')).groups || [];
+  } catch {
+    return;
+  }
+  const running = groups.filter((g) => g.rootfsBytes > 0);
+  if (!running.length) {
+    card.hidden = true;
+    return;
+  }
+  const total = running.reduce((a, g) => a + g.rootfsBytes, 0);
+  let acc = 0;
+  const stops = [];
+  const legend = [];
+  running.forEach((g, i) => {
+    const color = MEM_COLORS[i % MEM_COLORS.length];
+    const start = (acc / total) * 100;
+    acc += g.rootfsBytes;
+    const end = (acc / total) * 100;
+    stops.push(`${color} ${start.toFixed(2)}% ${end.toFixed(2)}%`);
+    const name = nameForStorageKey(g.key);
+    const pct = ((g.rootfsBytes / total) * 100).toFixed(0);
+    legend.push(`<div class="lg">
+      <span class="sw" style="background:${color}"></span>
+      <span class="lg-name" title="${esc(name)} · ${g.containers} container${g.containers > 1 ? 's' : ''}">${esc(name)}</span>
+      <span class="lg-val">${fmtBytes(g.rootfsBytes)} · ${pct}%</span>
+    </div>`);
+  });
+  $('#storage-pie').style.background = `conic-gradient(${stops.join(',')})`;
+  $('#storage-legend').innerHTML = legend.join('');
+  $('#storage-total').textContent = `${fmtBytes(total)} across ${running.length} app${running.length > 1 ? 's' : ''}`;
+  card.hidden = false;
+}
+
 // ---------- Project list ----------
 async function loadProjects() {
   try {
@@ -328,12 +372,14 @@ document.addEventListener('click', async (e) => {
     if (act === 'delete') {
       await api.send('DELETE', `/api/projects/${id}`);
       await loadProjects();
+      loadStorage();
       return;
     }
     const res = await api.send('POST', `/api/projects/${id}/${act}`);
     if (opLogs[id]) { opLogs[id].running = false; opLogs[id].ok = true; }
     await loadProjects();
     await loadSystem();
+    loadStorage();
   } catch (err) {
     if (opLogs[id]) { opLogs[id].running = false; opLogs[id].ok = false; appendOpLog(id, '\n' + err.message + '\n'); }
     msg.className = 'msg err';
@@ -1653,8 +1699,10 @@ async function initApp() {
   await loadProjects();
   await loadStatics();
   await refreshStats();
+  await loadStorage();
   statsTimer = setInterval(refreshStats, 4000);
   setInterval(loadSystem, 10000);
+  setInterval(loadStorage, 20000); // docker ps -s is heavier — poll less often
 }
 
 async function boot() {

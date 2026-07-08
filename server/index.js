@@ -71,6 +71,12 @@ app.post('/api/system/prune', auth.requireAdmin, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Per-running-container disk footprint (for the storage pie).
+app.get('/api/system/storage', async (req, res) => {
+  try { res.json({ groups: await docker.storageByContainer() }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // SSH deploy key (admin) — view / generate the key to add to a git host.
 app.get('/api/ssh-key', auth.requireAdmin, (req, res) => res.json(ssh.readPublicKey()));
 app.post('/api/ssh-key', auth.requireAdmin, async (req, res) => {

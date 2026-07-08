@@ -207,6 +207,23 @@ button.sm { padding: 7px 13px; font-size: 12.5px; border-radius: 8px; }
 .opt { color: var(--muted); font-weight: 400; }
 .auto { color: var(--muted); font-size: 13px; display: flex; gap: 7px; align-items: center; cursor: pointer; }
 
+/* Storage pie (per running container) */
+.storage { margin-top: 12px; }
+.storage-head { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; font-size: 14px; margin-bottom: 14px; }
+.storage-body { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
+.pie {
+  width: 148px; height: 148px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--panel-2);
+  -webkit-mask: radial-gradient(circle, transparent 40%, #000 41%);
+  mask: radial-gradient(circle, transparent 40%, #000 41%);
+}
+.pie-legend { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 220px; }
+.pie-legend .lg { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.pie-legend .sw { width: 11px; height: 11px; border-radius: 3px; flex: 0 0 auto; }
+.pie-legend .lg-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pie-legend .lg-val { color: var(--muted); font-variant-numeric: tabular-nums; }
+.storage-note { font-size: 11.5px; margin-top: 12px; }
+
 /* Secure env lists (admin manage + picker) */
 .secure-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 8px; }
 .secure-scope { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
