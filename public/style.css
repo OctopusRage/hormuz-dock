@@ -234,6 +234,14 @@ button.sm { padding: 7px 13px; font-size: 12.5px; border-radius: 8px; }
 .secure-val { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; color: var(--muted); flex: 1; word-break: break-all; }
 .secure-val.shown { color: var(--text); }
 .secure-meta { font-size: 12px; color: var(--muted); }
+.secure-addscope { display: flex; gap: 8px; margin-bottom: 10px; }
+.secure-addscope input { flex: 1; }
+.scope-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+.scope-row:hover { border-color: var(--accent); }
+.scope-name { font-weight: 700; font-size: 14px; flex: 0 0 auto; }
+.scope-count { color: var(--muted); font-size: 12.5px; flex: 1; }
+.secure-detail-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.secure-scope-title { font-weight: 600; font-size: 14px; }
 
 .project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 18px; margin-top: 16px; }
 .empty { color: var(--muted); text-align: center; padding: 48px; border: 1px dashed var(--border); border-radius: var(--radius); }

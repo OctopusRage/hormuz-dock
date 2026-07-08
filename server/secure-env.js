@@ -56,16 +56,20 @@ function decrypt(blob) {
 }
 
 // ---------- store ----------
-let state = { entries: [] };
+// scopes is an explicit list so an empty scope (created but no keys yet) persists.
+let state = { scopes: [], entries: [] };
 let writeQueue = Promise.resolve();
 
 function load() {
   try {
     state = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
     if (!Array.isArray(state.entries)) state.entries = [];
+    if (!Array.isArray(state.scopes)) state.scopes = [];
   } catch {
-    state = { entries: [] };
+    state = { scopes: [], entries: [] };
   }
+  // Backfill scopes from any entries (older stores had no scopes list).
+  for (const e of state.entries) if (!state.scopes.includes(e.scope)) state.scopes.push(e.scope);
 }
 function persist() {
   writeQueue = writeQueue.then(async () => {
@@ -82,9 +86,25 @@ function find(scope, key) {
   return state.entries.find((e) => e.scope === scope && e.key === key) || null;
 }
 
-/** Grouped view of scopes → entries. Values decrypted only when withValues. */
+export function hasScope(scope) {
+  return state.scopes.includes(scope);
+}
+
+/** Create an (initially empty) scope. Returns false if it already exists. */
+export async function addScope(scope) {
+  if (state.scopes.includes(scope)) return false;
+  state.scopes.push(scope);
+  await persist();
+  return true;
+}
+
+/**
+ * Grouped view: every scope → its entries (empty array for a scope with no keys
+ * yet). Values decrypted only when withValues.
+ */
 export function listGrouped({ withValues = false } = {}) {
   const scopes = {};
+  for (const s of state.scopes) scopes[s] = [];
   for (const e of state.entries) {
     (scopes[e.scope] ||= []).push({
       key: e.key,
@@ -99,6 +119,7 @@ export function listGrouped({ withValues = false } = {}) {
 
 export async function upsert({ scope, key, value, updatedBy }) {
   const now = new Date().toISOString();
+  if (!state.scopes.includes(scope)) state.scopes.push(scope);
   const existing = find(scope, key);
   if (existing) {
     existing.enc = encrypt(value);
@@ -120,7 +141,9 @@ export async function remove(scope, key) {
 export async function removeScope(scope) {
   const before = state.entries.length;
   state.entries = state.entries.filter((e) => e.scope !== scope);
-  if (state.entries.length !== before) await persist();
+  const had = state.scopes.includes(scope);
+  state.scopes = state.scopes.filter((s) => s !== scope);
+  if (before !== state.entries.length || had) await persist();
   return before - state.entries.length;
 }
 

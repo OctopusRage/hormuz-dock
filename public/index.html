@@ -277,39 +277,49 @@
       </div>
     </div>
 
-    <!-- Secure env (admin) modal -->
+    <!-- Global Secret Env (admin) modal -->
     <div id="secure-modal" class="modal" hidden>
       <div class="modal-box wide">
         <div class="modal-head">
-          <h3>Secure env <span class="opt">— admin-managed secrets</span></h3>
+          <h3 id="secure-head">Global Secret Env</h3>
           <button class="close" data-close>&times;</button>
         </div>
-        <div class="tab-panel">
+
+        <!-- View 1: scopes -->
+        <div id="secure-scopes-view" class="tab-panel">
           <p class="hint" style="margin-top:0">
-            Secrets are encrypted at rest and never shown to non-admins. In a project's
-            <b>Environment</b>, anyone can reference one with
-            <code>@secure:&lt;scope&gt;/&lt;KEY&gt;</code> (via <b>+ From secure env</b>) —
-            the real value is injected only at container start, never stored in the project's <code>.env</code>.
+            Secrets are encrypted at rest and never shown to non-admins. Group them by
+            <b>scope</b>; open a scope to add key/values. Projects reference one with
+            <code>@secure:&lt;scope&gt;/&lt;KEY&gt;</code> (Environment → <b>+ From secure env</b>).
           </p>
-          <div id="secure-list" class="secure-list"></div>
-          <h4 class="section">Add / update secret</h4>
-          <form id="secure-form" class="form-stack">
+          <form id="secure-scope-form" class="secure-addscope">
+            <input id="se-newscope" placeholder="New scope name (e.g. qismo)" autocomplete="off" />
+            <button class="primary" type="submit">+ Add scope</button>
+          </form>
+          <div id="secure-scope-msg" class="msg"></div>
+          <div id="secure-scope-list" class="secure-list"></div>
+        </div>
+
+        <!-- View 2: one scope's key/values -->
+        <div id="secure-detail-view" class="tab-panel" hidden>
+          <div class="secure-detail-head">
+            <button id="se-back" class="ghost sm">← All scopes</button>
+            <span class="secure-scope-title">Scope: <code id="se-scope-name"></code></span>
+          </div>
+          <div id="secure-key-list" class="secure-list"></div>
+          <h4 class="section">Add secret to this scope</h4>
+          <form id="secure-key-form" class="form-stack">
             <div class="cu-grid">
-              <div>
-                <label class="field-label">Scope</label>
-                <input id="se-scope" list="se-scopes" placeholder="e.g. qismo" autocomplete="off" />
-                <datalist id="se-scopes"></datalist>
-              </div>
               <div>
                 <label class="field-label">Key</label>
                 <input id="se-key" placeholder="e.g. DB_PASSWORD" autocomplete="off" />
               </div>
-            </div>
-            <div>
-              <label class="field-label">Value</label>
-              <div class="pw-field">
-                <input id="se-value" type="password" placeholder="secret value" autocomplete="new-password" />
-                <button type="button" id="se-show" class="ghost sm">Show</button>
+              <div>
+                <label class="field-label">Value</label>
+                <div class="pw-field">
+                  <input id="se-value" type="password" placeholder="secret value" autocomplete="new-password" />
+                  <button type="button" id="se-show" class="ghost sm">Show</button>
+                </div>
               </div>
             </div>
             <div class="cu-foot">

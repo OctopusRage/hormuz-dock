@@ -675,7 +675,7 @@ async function openSecurePicker() {
   try {
     const d = await api.get('/api/secure-env');
     const scopes = d.scopes || {};
-    const names = Object.keys(scopes).sort();
+    const names = Object.keys(scopes).filter((s) => scopes[s].length).sort(); // only scopes with keys
     if (!names.length) {
       list.innerHTML = '';
       $('#secure-pick-empty').hidden = false;
@@ -706,83 +706,136 @@ $('#secure-pick-list').addEventListener('click', (e) => {
   switchTab('table');
 });
 
-// ---------- Secure env: admin management modal ----------
-async function openSecure() {
-  $('#secure-msg').textContent = '';
-  $('#secure-msg').className = 'msg';
-  $('#secure-form').reset();
-  $('#se-value').type = 'password';
-  $('#se-show').textContent = 'Show';
-  $('#secure-modal').hidden = false;
-  await loadSecure();
+// ---------- Global Secret Env: admin management (scope-first, two views) ----------
+let secureScope = null;      // scope currently open in the detail view
+let secureData = { scopes: {} };
+const secureReveal = {};     // "scope/key" -> revealed value cache
+
+function secureShowScopes() {
+  secureScope = null;
+  $('#secure-scopes-view').hidden = false;
+  $('#secure-detail-view').hidden = true;
 }
 
-const secureReveal = {}; // "scope/key" -> revealed value cache
+async function openSecure() {
+  $('#secure-scope-msg').textContent = '';
+  $('#secure-scope-form').reset();
+  secureShowScopes();
+  $('#secure-modal').hidden = false;
+  await loadScopes();
+}
 
-async function loadSecure() {
+async function loadScopes() {
   try {
-    const d = await api.get('/api/secure-env');
-    const scopes = d.scopes || {};
-    const names = Object.keys(scopes).sort();
-    $('#se-scopes').innerHTML = names.map((n) => `<option value="${esc(n)}"></option>`).join('');
-    $('#secure-list').innerHTML = names.length
-      ? names.map((scope) => `
-        <div class="secure-scope">
-          <div class="secure-scope-name">${esc(scope)}
-            <button class="fdel" data-delscope="${esc(scope)}" title="Delete entire scope">✕ scope</button>
-          </div>
-          ${scopes[scope].map((e) => `
-            <div class="secure-row" data-scope="${esc(scope)}" data-key="${esc(e.key)}">
-              <code class="secure-ref">${esc(e.key)}</code>
-              <span class="secure-val" data-val>${e.value != null ? '••••••••' : ''}</span>
-              <span class="secure-meta">${e.updatedBy ? 'by ' + esc(e.updatedBy) : ''}</span>
-              <button class="sm ghost" data-reveal title="Reveal / hide">👁</button>
-              <button class="fdel" data-delsecret title="Delete">✕</button>
-            </div>`).join('')}
-        </div>`).join('')
-      : '<div class="muted" style="padding:8px 0">No secrets yet. Add one below.</div>';
-    // stash values for reveal (admin response includes them)
-    for (const scope of names) for (const e of scopes[scope]) {
-      if (e.value != null) secureReveal[`${scope}/${e.key}`] = e.value;
-    }
+    secureData = await api.get('/api/secure-env');
   } catch (e) {
-    $('#secure-list').innerHTML = `<div class="msg err" style="padding:8px 0">${esc(e.message)}</div>`;
+    $('#secure-scope-list').innerHTML = `<div class="msg err" style="padding:8px 0">${esc(e.message)}</div>`;
+    return;
+  }
+  const names = Object.keys(secureData.scopes || {}).sort();
+  $('#secure-scope-list').innerHTML = names.length
+    ? names.map((s) => {
+        const n = secureData.scopes[s].length;
+        return `<div class="scope-row" data-openscope="${esc(s)}">
+          <span class="scope-name">${esc(s)}</span>
+          <span class="scope-count">${n} secret${n === 1 ? '' : 's'}</span>
+          <button class="sm ghost" data-openscope-btn="${esc(s)}">Open →</button>
+          <button class="fdel" data-delscope="${esc(s)}" title="Delete scope">✕</button>
+        </div>`;
+      }).join('')
+    : '<div class="muted" style="padding:8px 0">No scopes yet. Add one above.</div>';
+  for (const s of names) for (const e of secureData.scopes[s]) {
+    if (e.value != null) secureReveal[`${s}/${e.key}`] = e.value;
   }
 }
 
+$('#secure-scope-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('#secure-scope-msg');
+  const scope = $('#se-newscope').value.trim();
+  if (!scope) return;
+  if (!/^[A-Za-z0-9._-]+$/.test(scope)) { msg.className = 'msg err'; msg.textContent = 'Scope: letters, numbers, . _ - only.'; return; }
+  msg.className = 'msg';
+  msg.textContent = 'Adding…';
+  try {
+    await api.send('POST', '/api/secure-env/scope', { scope });
+    $('#se-newscope').value = '';
+    msg.textContent = '';
+    await loadScopes();
+    openScope(scope); // jump straight into the new scope to add keys
+  } catch (err) { msg.className = 'msg err'; msg.textContent = err.message; }
+});
+
+$('#secure-scope-list').addEventListener('click', async (e) => {
+  const del = e.target.closest('[data-delscope]');
+  const open = e.target.closest('[data-openscope-btn]') || e.target.closest('[data-openscope]');
+  if (del) {
+    e.stopPropagation();
+    const scope = del.dataset.delscope;
+    if (!confirm(`Delete the ENTIRE "${scope}" scope and all its secrets?`)) return;
+    try { await api.send('DELETE', `/api/secure-env/scope?scope=${encodeURIComponent(scope)}`); await loadScopes(); }
+    catch (er) { $('#secure-scope-msg').className = 'msg err'; $('#secure-scope-msg').textContent = er.message; }
+  } else if (open) {
+    openScope(open.dataset.openscopeBtn || open.dataset.openscope);
+  }
+});
+
+// --- scope detail view ---
+function openScope(scope) {
+  secureScope = scope;
+  $('#se-scope-name').textContent = scope;
+  $('#secure-scopes-view').hidden = true;
+  $('#secure-detail-view').hidden = false;
+  $('#secure-msg').textContent = '';
+  $('#secure-key-form').reset();
+  $('#se-value').type = 'password';
+  $('#se-show').textContent = 'Show';
+  renderScopeKeys();
+}
+
+function renderScopeKeys() {
+  const entries = secureData.scopes[secureScope] || [];
+  $('#secure-key-list').innerHTML = entries.length
+    ? entries.map((e) => `
+      <div class="secure-row" data-scope="${esc(secureScope)}" data-key="${esc(e.key)}">
+        <code class="secure-ref">${esc(e.key)}</code>
+        <span class="secure-val" data-val>${e.value != null ? '••••••••' : ''}</span>
+        <span class="secure-meta">${e.updatedBy ? 'by ' + esc(e.updatedBy) : ''}</span>
+        <button class="sm ghost" data-reveal title="Reveal / hide">👁</button>
+        <button class="fdel" data-delsecret title="Delete">✕</button>
+      </div>`).join('')
+    : '<div class="muted" style="padding:8px 0">No secrets in this scope yet — add one below.</div>';
+}
+
+$('#se-back').addEventListener('click', secureShowScopes);
 bindPwToggle('#se-show', '#se-value');
 
-$('#secure-form').addEventListener('submit', async (e) => {
+$('#secure-key-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const msg = $('#secure-msg');
-  const scope = $('#se-scope').value.trim();
   const key = $('#se-key').value.trim();
   const value = $('#se-value').value;
   const fail = (t) => { msg.className = 'msg err'; msg.textContent = t; };
-  if (!scope || !key) return fail('Scope and key are required.');
-  if (!/^[A-Za-z0-9._-]+$/.test(scope) || !/^[A-Za-z0-9._-]+$/.test(key)) {
-    return fail('Scope/key: letters, numbers, . _ - only.');
-  }
+  if (!key) return fail('Key is required.');
+  if (!/^[A-Za-z0-9._-]+$/.test(key)) return fail('Key: letters, numbers, . _ - only.');
   msg.className = 'msg';
   msg.textContent = 'Saving…';
   try {
-    const r = await api.send('POST', '/api/secure-env', { scope, key, value });
+    const r = await api.send('POST', '/api/secure-env', { scope: secureScope, key, value });
     msg.className = 'msg ok';
     msg.textContent = `Saved. Reference: ${r.ref}`;
     $('#se-key').value = '';
     $('#se-value').value = '';
     $('#se-value').type = 'password';
     $('#se-show').textContent = 'Show';
-    await loadSecure();
-  } catch (err) {
-    fail(err.message);
-  }
+    await loadScopes();
+    renderScopeKeys();
+  } catch (err) { fail(err.message); }
 });
 
-$('#secure-list').addEventListener('click', async (e) => {
+$('#secure-key-list').addEventListener('click', async (e) => {
   const reveal = e.target.closest('[data-reveal]');
-  const delSecret = e.target.closest('[data-delsecret]');
-  const delScope = e.target.closest('[data-delscope]');
+  const del = e.target.closest('[data-delsecret]');
   if (reveal) {
     const row = reveal.closest('.secure-row');
     const valEl = $('[data-val]', row);
@@ -790,19 +843,13 @@ $('#secure-list').addEventListener('click', async (e) => {
     const masked = valEl.textContent.startsWith('•') || valEl.textContent === '';
     valEl.textContent = masked ? (secureReveal[k] ?? '(hidden)') : '••••••••';
     valEl.classList.toggle('shown', masked);
-  } else if (delSecret) {
-    const row = delSecret.closest('.secure-row');
+  } else if (del) {
+    const row = del.closest('.secure-row');
     if (!confirm(`Delete secret ${row.dataset.scope}/${row.dataset.key}?`)) return;
     try {
       await api.send('DELETE', `/api/secure-env?scope=${encodeURIComponent(row.dataset.scope)}&key=${encodeURIComponent(row.dataset.key)}`);
-      await loadSecure();
-    } catch (er) { $('#secure-msg').className = 'msg err'; $('#secure-msg').textContent = er.message; }
-  } else if (delScope) {
-    const scope = delScope.dataset.delscope;
-    if (!confirm(`Delete the ENTIRE "${scope}" scope and all its secrets?`)) return;
-    try {
-      await api.send('DELETE', `/api/secure-env/scope?scope=${encodeURIComponent(scope)}`);
-      await loadSecure();
+      await loadScopes();
+      renderScopeKeys();
     } catch (er) { $('#secure-msg').className = 'msg err'; $('#secure-msg').textContent = er.message; }
   }
 });
@@ -1419,7 +1466,7 @@ function renderUserbar() {
     <span class="whoami">${esc(currentUser.username)} <span class="role ${esc(currentUser.role)}">${esc(currentUser.role)}</span></span>
     ${admin ? '<button class="sm ghost" id="btn-users">Users</button>' : ''}
     ${admin ? '<button class="sm ghost" id="btn-sshkey">SSH key</button>' : ''}
-    ${admin ? '<button class="sm ghost" id="btn-secure">Secure env</button>' : ''}
+    ${admin ? '<button class="sm ghost" id="btn-secure">Global Secret Env</button>' : ''}
     ${admin ? '<button class="sm ghost" id="btn-prune">Prune</button>' : ''}
     <button class="sm ghost" id="btn-audit">Audit log</button>
     <button class="sm ghost" id="btn-pass">Password</button>

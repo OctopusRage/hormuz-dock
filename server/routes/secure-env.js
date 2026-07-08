@@ -39,6 +39,20 @@ router.post(
   })
 );
 
+// Create an (empty) scope (admin only).
+router.post(
+  '/scope',
+  auth.requireAdmin,
+  h(async (req, res) => {
+    const scope = String(req.body?.scope || '').trim();
+    if (!scope) return res.status(400).json({ error: 'scope is required' });
+    if (!NAME_RE.test(scope)) return res.status(400).json({ error: 'Invalid scope (use letters, numbers, . _ -)' });
+    const created = await secure.addScope(scope);
+    if (!created) return res.status(409).json({ error: `Scope "${scope}" already exists` });
+    res.json({ ok: true, scope });
+  })
+);
+
 // Delete a single secret (admin only).
 router.delete(
   '/',
