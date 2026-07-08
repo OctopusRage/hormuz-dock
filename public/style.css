@@ -406,6 +406,8 @@ table.audit .muted { color: var(--muted); }
 .env-row .k { flex: 0 0 40%; }
 .env-row button { background: var(--panel-2); border: 1px solid var(--border); box-shadow: none; color: var(--muted); padding: 8px 12px; }
 .env-row button:hover { filter: none; background: var(--panel-3); }
+.env-row .v.is-ref { font-family: ui-monospace, Menlo, monospace; color: var(--accent); border-color: var(--accent); }
+.env-row .row-secure { flex: 0 0 auto; }
 #env-textarea, #compose-textarea, #compose-base-textarea { width: 100%; min-height: 340px; resize: vertical; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.5; }
 #sshkey-text { width: 100%; min-height: 90px; resize: vertical; font-family: ui-monospace, monospace; font-size: 12.5px; line-height: 1.5; word-break: break-all; }
 #compose-base-textarea { color: var(--muted); background: var(--panel-3); }

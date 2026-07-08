@@ -609,10 +609,16 @@ async function openEnv(project) {
 function renderEnvRows(pairs) {
   $('#env-rows').innerHTML = pairs.map(envRow).join('') || envRow({ key: '', value: '' });
 }
+function isSecureRef(v) {
+  return /^@secure:[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(String(v || '').trim());
+}
+
 function envRow(p) {
+  const ref = isSecureRef(p.value);
   return `<div class="env-row">
     <input class="k" placeholder="KEY" value="${esc(p.key)}" />
-    <input class="v" placeholder="value" value="${esc(p.value)}" />
+    <input class="v${ref ? ' is-ref' : ''}" placeholder="value or pick a global secret" value="${esc(p.value)}" />
+    <button type="button" class="row-secure" data-rowsecure title="Use a value from Global Secret Env">🔒</button>
     <button type="button" data-del>✕</button>
   </div>`;
 }
@@ -621,7 +627,16 @@ $('#env-add').addEventListener('click', () => {
   $('#env-rows').insertAdjacentHTML('beforeend', envRow({ key: '', value: '' }));
 });
 $('#env-rows').addEventListener('click', (e) => {
-  if (e.target.closest('[data-del]')) e.target.closest('.env-row').remove();
+  if (e.target.closest('[data-del]')) { e.target.closest('.env-row').remove(); return; }
+  const rowSecure = e.target.closest('[data-rowsecure]');
+  if (rowSecure) {
+    securePickTarget = rowSecure.closest('.env-row'); // fill THIS row's value
+    openSecurePicker();
+  }
+});
+// Keep the reference styling in sync when a value is typed/cleared by hand.
+$('#env-rows').addEventListener('input', (e) => {
+  if (e.target.classList.contains('v')) e.target.classList.toggle('is-ref', isSecureRef(e.target.value));
 });
 
 $$('.tab[data-tab]').forEach((t) => t.addEventListener('click', () => switchTab(t.dataset.tab)));
@@ -665,7 +680,11 @@ $('#env-save').addEventListener('click', async () => {
 });
 
 // ---------- Secure env: picker (insert reference into the Env editor) ----------
-$('#env-secure').addEventListener('click', openSecurePicker);
+// When set to a .env-row element, a pick fills that row's value; otherwise a
+// pick appends a new row.
+let securePickTarget = null;
+
+$('#env-secure').addEventListener('click', () => { securePickTarget = null; openSecurePicker(); });
 
 async function openSecurePicker() {
   const list = $('#secure-pick-list');
@@ -700,10 +719,20 @@ $('#secure-pick-list').addEventListener('click', (e) => {
   if (!btn) return;
   const scope = btn.dataset.scope;
   const key = btn.dataset.key;
-  // Add an env row referencing the secret (key defaults to the secret's name).
-  $('#env-rows').insertAdjacentHTML('beforeend', envRow({ key, value: `@secure:${scope}/${key}` }));
+  const ref = `@secure:${scope}/${key}`;
+  if (securePickTarget && securePickTarget.isConnected) {
+    // Fill the chosen row's value; default an empty KEY to the secret's name.
+    const kInput = $('.k', securePickTarget);
+    const vInput = $('.v', securePickTarget);
+    if (!kInput.value.trim()) kInput.value = key;
+    vInput.value = ref;
+    vInput.classList.add('is-ref');
+  } else {
+    // Bottom button: append a new referencing row.
+    $('#env-rows').insertAdjacentHTML('beforeend', envRow({ key, value: ref }));
+  }
+  securePickTarget = null;
   $('#secure-pick-modal').hidden = true;
-  switchTab('table');
 });
 
 // ---------- Global Secret Env: admin management (scope-first, two views) ----------
