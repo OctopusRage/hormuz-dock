@@ -101,41 +101,66 @@ function nameForStorageKey(key) {
   return p ? p.name : key;
 }
 
+const STORAGE_OTHER_COLOR = '#6b7a90'; // non-Docker / images / stopped
+const STORAGE_FREE_COLOR = '#41506a'; // free disk
+
 async function loadStorage() {
   const card = $('#storagecard');
   if (!card) return;
-  let groups;
+  let data;
   try {
-    groups = (await api.get('/api/system/storage')).groups || [];
+    data = await api.get('/api/system/storage');
   } catch {
     return;
   }
-  const running = groups.filter((g) => g.rootfsBytes > 0);
-  if (!running.length) {
+  const running = (data.groups || []).filter((g) => g.rootfsBytes > 0);
+  const disk = data.disk;
+  if (!running.length && !disk) {
     card.hidden = true;
     return;
   }
-  const total = running.reduce((a, g) => a + g.rootfsBytes, 0);
+
+  // Slices: one per running app (footprint), then Other-used + Free from the disk.
+  const slices = running.map((g, i) => ({
+    label: nameForStorageKey(g.key),
+    bytes: g.rootfsBytes,
+    color: MEM_COLORS[i % MEM_COLORS.length],
+    sub: `${g.containers} container${g.containers > 1 ? 's' : ''}`,
+  }));
+
+  if (disk && disk.total) {
+    const sumApps = running.reduce((a, g) => a + g.rootfsBytes, 0);
+    const otherUsed = disk.used - sumApps;
+    if (otherUsed > 0) {
+      slices.push({ label: 'Other used', bytes: otherUsed, color: STORAGE_OTHER_COLOR, sub: 'non-Docker / images / stopped' });
+    } else if (sumApps > 0) {
+      // Footprints over-count shared image layers — scale them to real used disk.
+      const scale = disk.used / sumApps;
+      slices.forEach((s) => { s.bytes = Math.round(s.bytes * scale); });
+    }
+    slices.push({ label: 'Free', bytes: disk.free, color: STORAGE_FREE_COLOR, sub: 'available' });
+  }
+
+  const sum = slices.reduce((a, s) => a + s.bytes, 0) || 1;
   let acc = 0;
   const stops = [];
   const legend = [];
-  running.forEach((g, i) => {
-    const color = MEM_COLORS[i % MEM_COLORS.length];
-    const start = (acc / total) * 100;
-    acc += g.rootfsBytes;
-    const end = (acc / total) * 100;
-    stops.push(`${color} ${start.toFixed(2)}% ${end.toFixed(2)}%`);
-    const name = nameForStorageKey(g.key);
-    const pct = ((g.rootfsBytes / total) * 100).toFixed(0);
+  slices.forEach((s) => {
+    const start = (acc / sum) * 100;
+    acc += s.bytes;
+    const end = (acc / sum) * 100;
+    stops.push(`${s.color} ${start.toFixed(2)}% ${end.toFixed(2)}%`);
     legend.push(`<div class="lg">
-      <span class="sw" style="background:${color}"></span>
-      <span class="lg-name" title="${esc(name)} · ${g.containers} container${g.containers > 1 ? 's' : ''}">${esc(name)}</span>
-      <span class="lg-val">${fmtBytes(g.rootfsBytes)} · ${pct}%</span>
+      <span class="sw" style="background:${s.color}"></span>
+      <span class="lg-name" title="${esc(s.label)}${s.sub ? ' · ' + esc(s.sub) : ''}">${esc(s.label)}</span>
+      <span class="lg-val">${fmtBytes(s.bytes)} · ${((s.bytes / sum) * 100).toFixed(0)}%</span>
     </div>`);
   });
   $('#storage-pie').style.background = `conic-gradient(${stops.join(',')})`;
   $('#storage-legend').innerHTML = legend.join('');
-  $('#storage-total').textContent = `${fmtBytes(total)} across ${running.length} app${running.length > 1 ? 's' : ''}`;
+  $('#storage-total').textContent = disk && disk.total
+    ? `${fmtBytes(disk.free)} free of ${fmtBytes(disk.total)}`
+    : `${fmtBytes(sum)} across ${running.length} app${running.length > 1 ? 's' : ''}`;
   card.hidden = false;
 }
 

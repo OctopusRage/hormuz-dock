@@ -351,6 +351,23 @@ export async function storageByContainer() {
   return Object.values(groups).sort((a, b) => b.rootfsBytes - a.rootfsBytes);
 }
 
+/** Filesystem usage of the Docker data root (total / used / free bytes). */
+export async function diskUsage() {
+  let root = '/';
+  try {
+    const r = await run('docker', ['info', '--format', '{{.DockerRootDir}}'], { timeout: 10 * 1000 });
+    if (r.code === 0 && r.stdout.trim()) root = r.stdout.trim();
+  } catch { /* fall back to / */ }
+  try {
+    const s = fs.statfsSync(root);
+    const total = s.blocks * s.bsize;
+    const free = s.bavail * s.bsize; // space usable by non-root
+    return { root, total, free, used: Math.max(0, total - free) };
+  } catch {
+    return null;
+  }
+}
+
 /** Docker disk usage summary (images / containers / volumes / build cache). */
 export async function systemDf() {
   const res = await run(
