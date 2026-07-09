@@ -8,6 +8,13 @@ A lightweight web app to manage multiple **Docker Compose** projects on a single
 Drop in a git link, Hormuz Dock clones it, finds the compose file, and gives you a GUI to
 edit env vars, start/stop the stack, and watch resource usage.
 
+> **Best for developers with a playground server** — a single box where you spin up
+> experiments, demos, side-projects, and internal tools from a git URL, wire each one to
+> a `/_slug` URL, and tear it down when you're done. It trades the guardrails of a full
+> PaaS/orchestrator (multi-node, RBAC per app, GitOps) for a fast, low-ceremony way to
+> juggle many small stacks on one host. Great for staging/experiments; for
+> business-critical production prefer a managed platform or Kubernetes.
+
 ## Quick start
 
 On an Ubuntu/Debian server that already has Docker + the compose plugin, one
