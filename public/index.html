@@ -501,7 +501,8 @@
             (letters, numbers, hyphens) and the target port. e.g. name
             <code>chat</code> + port <code>9999</code> makes
             <code>&lt;this-host&gt;/_chat</code> serve your app on 9999
-            (WebSockets included).
+            (WebSockets included). Set <b>🔒 Allow from</b> to restrict a route to your
+            VPN/IP (e.g. <code>10.30.0.0/16</code>) — blank means open to anyone who can reach this host.
           </p>
           <div id="routes-rows"></div>
           <button id="routes-add" class="ghost">+ Add route</button>

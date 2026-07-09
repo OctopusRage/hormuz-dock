@@ -296,7 +296,7 @@ function routeLinks(routes) {
   return (
     '<div class="ports-line"><span class="ports-label">Proxy:</span> ' +
     routes
-      .map((r) => `<a class="route" href="${esc(r.path)}/" target="_blank" rel="noopener">${esc(r.path)} → :${esc(r.port)} ↗</a>`)
+      .map((r) => `<a class="route" href="${esc(r.path)}/" target="_blank" rel="noopener" title="${r.allowCidrs?.length ? 'Restricted to ' + esc(r.allowCidrs.join(', ')) : ''}">${esc(r.path)} → :${esc(r.port)}${r.allowCidrs?.length ? ' 🔒' : ''} ↗</a>`)
       .join(' ') +
     '</div>'
   );
@@ -1196,18 +1196,25 @@ function renderRouteRows(routes) {
 }
 function routeRow(r) {
   const slug = r.slug ?? String(r.path || '').replace(/^\/?_?/, '');
+  const allow = Array.isArray(r.allowCidrs) ? r.allowCidrs.join(', ') : '';
   return `<div class="route-row">
-    <span class="prefix">/_</span>
-    <input class="rp" placeholder="chat" value="${esc(slug)}" />
-    <span class="arrow">→ :</span>
-    ${portField(r.port)}
-    <label class="strip" title="Strip the path prefix before forwarding (recommended)">
-      <input type="checkbox" class="rstrip" ${r.stripPrefix !== false ? 'checked' : ''} /> strip
-    </label>
-    <label class="strip" title="Fix CORS for credentialed cross-origin calls: proxy echoes the caller's Origin, adds Allow-Credentials, and answers preflight (reflecting requested headers).">
-      <input type="checkbox" class="rcors" ${r.cors ? 'checked' : ''} /> CORS
-    </label>
-    <button type="button" data-del>✕</button>
+    <div class="route-main">
+      <span class="prefix">/_</span>
+      <input class="rp" placeholder="chat" value="${esc(slug)}" />
+      <span class="arrow">→ :</span>
+      ${portField(r.port)}
+      <label class="strip" title="Strip the path prefix before forwarding (recommended)">
+        <input type="checkbox" class="rstrip" ${r.stripPrefix !== false ? 'checked' : ''} /> strip
+      </label>
+      <label class="strip" title="Fix CORS for credentialed cross-origin calls: proxy echoes the caller's Origin, adds Allow-Credentials, and answers preflight (reflecting requested headers).">
+        <input type="checkbox" class="rcors" ${r.cors ? 'checked' : ''} /> CORS
+      </label>
+      <button type="button" data-del>✕</button>
+    </div>
+    <div class="route-allow">
+      <span class="ra-label" title="Only these IPv4 addresses/subnets may reach this route (e.g. your VPN). Blank = open to anyone who can reach this host.">🔒 Allow from</span>
+      <input class="rcidr" placeholder="e.g. 10.30.0.0/16, 127.0.0.1  —  blank = public" value="${esc(allow)}" />
+    </div>
   </div>`;
 }
 
@@ -1252,6 +1259,7 @@ $('#routes-save').addEventListener('click', async () => {
       portRaw,
       stripPrefix: $('.rstrip', row).checked,
       cors: $('.rcors', row).checked,
+      allowCidrs: $('.rcidr', row).value.trim(),
     };
   });
 
@@ -1267,7 +1275,7 @@ $('#routes-save').addEventListener('click', async () => {
     if (!port || port < 1 || port > 65535) {
       return failRoutes(`Enter a valid port (1–65535) for "/_${r.slug}".`);
     }
-    routes.push({ slug: r.slug, port, stripPrefix: r.stripPrefix, cors: r.cors });
+    routes.push({ slug: r.slug, port, stripPrefix: r.stripPrefix, cors: r.cors, allowCidrs: r.allowCidrs });
   }
   // Reject duplicate names client-side too.
   const names = routes.map((r) => r.slug);

@@ -76,6 +76,64 @@ function targetFor(route) {
   return `http://127.0.0.1:${route.port}`;
 }
 
+// --- Per-route IP allowlist (e.g. restrict a route to the VPN subnet) ---
+
+/**
+ * Client IP for the allowlist check. Uses the value our trusted front proxy
+ * records — X-Real-IP, else the RIGHTMOST X-Forwarded-For hop (the one nginx
+ * appended) — not the leftmost, which a client can spoof. Falls back to the
+ * socket peer. Requires nginx to set these headers (proxy_set_header X-Real-IP
+ * $remote_addr / X-Forwarded-For $proxy_add_x_forwarded_for).
+ */
+function clientIp(req) {
+  let ip = req.headers['x-real-ip'];
+  if (!ip) {
+    const xff = req.headers['x-forwarded-for'];
+    if (xff) {
+      const parts = String(xff).split(',').map((s) => s.trim()).filter(Boolean);
+      ip = parts[parts.length - 1];
+    }
+  }
+  if (!ip) ip = req.socket?.remoteAddress || '';
+  ip = String(ip).trim();
+  if (ip.startsWith('::ffff:')) ip = ip.slice(7);
+  return ip;
+}
+
+function ipv4ToInt(ip) {
+  const p = String(ip).split('.');
+  if (p.length !== 4) return null;
+  let n = 0;
+  for (const o of p) {
+    const v = parseInt(o, 10);
+    if (isNaN(v) || v < 0 || v > 255) return null;
+    n = n * 256 + v;
+  }
+  return n >>> 0;
+}
+
+/** Is `ip` inside `cidr` (IPv4 a.b.c.d[/n]; non-IPv4 falls back to exact match). */
+function ipInCidr(ip, cidr) {
+  const [range, bitsStr] = String(cidr).split('/');
+  const ipN = ipv4ToInt(ip);
+  const rN = ipv4ToInt(range);
+  const bits = bitsStr === undefined ? 32 : parseInt(bitsStr, 10);
+  if (ipN === null || rN === null || isNaN(bits) || bits < 0 || bits > 32) {
+    return ip === range && bitsStr === undefined; // non-IPv4: exact match
+  }
+  if (bits === 0) return true;
+  const mask = bits === 32 ? 0xffffffff : (~((1 << (32 - bits)) - 1)) >>> 0;
+  return (ipN & mask) === (rN & mask);
+}
+
+/** Allow if no allowlist is set, else the client IP must match one CIDR. */
+export function routeAllowsClient(route, req) {
+  const cidrs = route.allowCidrs;
+  if (!cidrs || !cidrs.length) return true;
+  const ip = clientIp(req);
+  return !!ip && cidrs.some((c) => ipInCidr(ip, c));
+}
+
 // Strip the route prefix so the backend app sees a root-relative path.
 function rewrite(url, route) {
   if (route.stripPrefix === false) return url;
@@ -88,6 +146,13 @@ export function proxyMiddleware(req, res, next) {
   const pathname = req.url.split('?')[0];
   const route = findRoute(pathname);
   if (!route) return next();
+
+  // Per-route IP allowlist (e.g. VPN-only): reject clients outside the CIDRs.
+  if (!routeAllowsClient(route, req)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden: this route is restricted to allowed networks.');
+    return;
+  }
 
   // Opt-in CORS fix: short-circuit preflights, and flag real requests so the
   // proxyRes handler rewrites their CORS headers.
@@ -107,6 +172,7 @@ export function handleProxyUpgrade(req, socket, head) {
   const pathname = req.url.split('?')[0];
   const route = findRoute(pathname);
   if (!route) return false;
+  if (!routeAllowsClient(route, req)) { socket.destroy(); return true; } // blocked
   req.url = rewrite(req.url, route);
   proxy.ws(req, socket, head, { target: targetFor(route), changeOrigin: true });
   return true;

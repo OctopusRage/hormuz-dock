@@ -422,7 +422,11 @@ table.audit .muted { color: var(--muted); }
 
 a.route { color: var(--accent-2); text-decoration: none; background: rgba(52, 213, 197, 0.12); border: 1px solid rgba(52, 213, 197, 0.24); padding: 1px 8px; border-radius: 7px; font-weight: 600; transition: background 0.15s; }
 a.route:hover { background: rgba(52, 213, 197, 0.22); }
-.route-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.route-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border-soft); }
+.route-main { display: flex; align-items: center; gap: 8px; }
+.route-allow { display: flex; align-items: center; gap: 8px; padding-left: 24px; }
+.route-allow .ra-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.route-allow .rcidr { flex: 1; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
 .route-row .prefix { color: var(--muted); font-family: ui-monospace, monospace; font-weight: 600; }
 .route-row .rp { flex: 1; }
 .route-row .rport { width: 110px; }

@@ -501,12 +501,30 @@ router.put(
         });
       }
       if (port < 1 || port > 65535) return res.status(400).json({ error: `Invalid port ${r.port}` });
+
+      // Optional IP allowlist (VPN-only etc). Accept an array or a comma/space list.
+      const rawCidrs = Array.isArray(r.allowCidrs)
+        ? r.allowCidrs
+        : typeof r.allowCidrs === 'string'
+          ? r.allowCidrs.split(/[\s,]+/)
+          : [];
+      const allowCidrs = [];
+      for (const c of rawCidrs) {
+        const s = String(c).trim();
+        if (!s) continue;
+        if (!/^(\d{1,3}\.){3}\d{1,3}(\/(3[0-2]|[12]?\d))?$/.test(s)) {
+          return res.status(400).json({ error: `Invalid IPv4 CIDR/IP "${s}" (e.g. 10.30.0.0/16).` });
+        }
+        allowCidrs.push(s);
+      }
+
       routes.push({
         path: '/_' + slug,
         slug,
         port,
         stripPrefix: r.stripPrefix !== false,
         cors: r.cors === true || r.cors === 'true',
+        allowCidrs,
       });
     }
     // Reject duplicate paths within this project.
