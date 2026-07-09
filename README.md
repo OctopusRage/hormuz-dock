@@ -30,6 +30,9 @@ Re-run it any time to update. It prints the generated `admin` password on first 
    auto-refreshed every few seconds via `docker stats`.
 5. **Lifecycle control** — Start (`compose up -d`), Stop (`compose stop`),
    Restart, Pull (`git pull`), Logs, and Delete (`compose down` + remove repo).
+6. **Reverse proxy & access control** — expose apps under `/_<slug>` (WebSockets +
+   optional CORS fix), and restrict a route or the whole admin panel to your VPN by
+   IP/CIDR **or hostname** (see [Reverse proxy & access control](#reverse-proxy--access-control)).
 
 ## Requirements
 
@@ -118,6 +121,47 @@ Other notes:
   names can't inject commands. Git credential prompts are disabled so bad/private
   URLs fail fast instead of hanging.
 
+## Reverse proxy & access control
+
+Each project can expose **reverse-proxy routes** under `/_<slug>` (e.g. name `chat`
++ port `9999` → `<host>/_chat` proxies to `127.0.0.1:9999`, WebSockets included),
+managed in a project's **Proxy routes**. Per-route options:
+
+- **strip** — strip the `/_<slug>` prefix before forwarding (default on).
+- **CORS** — the proxy answers preflight and rewrites responses for credentialed
+  cross-origin calls (echoes `Origin`, adds `Allow-Credentials`, reflects requested
+  headers, and handles Chrome's Private Network Access).
+- **🔒 Allow from** — restrict the route to an allowlist. Accepts IPv4 CIDRs/IPs
+  (`10.30.0.0/16`) **or a hostname** (`vpn.example.com`, resolved via DNS and
+  re-resolved every 5 min). Blank = open; clients outside the list get `403`.
+
+### VPN-only admin panel (routes stay public)
+
+Set `HORMUZ_PANEL_ALLOW_CIDRS` in the env file to lock the **admin panel** (UI +
+`/api` + the container shell) to your network, while proxy routes stay public:
+
+```bash
+HORMUZ_PANEL_ALLOW_CIDRS=vpn.example.com            # hostname — auto-follows DNS
+# HORMUZ_PANEL_ALLOW_CIDRS=10.30.0.0/16,203.0.113.4 # or CIDRs / IPs (comma-separated)
+```
+
+`/_slug` routes and `/_static_/` sites stay **public** — so you can host the panel
+VPN-only while serving public apps from the same instance. Empty/unset = open;
+loopback is always allowed. Set via env (not the UI) so a bad value can't lock you
+out — fix the env and restart.
+
+**Client IP** is read from `X-Real-IP` or the rightmost `X-Forwarded-For` hop (the
+one your trusted front proxy records, not the spoofable leftmost), so the front proxy
+must forward it:
+
+```nginx
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+```
+
+Blocked attempts are logged with the client IP (`journalctl -u hormuz-dock | grep blocked`)
+— handy for finding the right CIDR/hostname.
+
 ## API
 
 | Method | Path | Purpose |
@@ -145,5 +189,7 @@ mounted). Therefore:
   first run) and only hand out accounts to people you'd trust with host root.
 - There is **no HTTPS** built in — put it behind a TLS-terminating reverse proxy,
   or bind to localhost and reach it via SSH tunnel. Run it on a trusted network.
-- The reverse-proxy `/_name` routes are intentionally **public** (they serve your
-  published apps); don't expose anything sensitive that way.
+- Reverse-proxy `/_name` routes are **public by default** (they serve your published
+  apps). Restrict any route with a per-route **Allow from** allowlist, and/or gate the
+  whole admin panel with `HORMUZ_PANEL_ALLOW_CIDRS` — see
+  [Reverse proxy & access control](#reverse-proxy--access-control).
