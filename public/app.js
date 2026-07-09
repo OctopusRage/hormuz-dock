@@ -1212,8 +1212,8 @@ function routeRow(r) {
       <button type="button" data-del>✕</button>
     </div>
     <div class="route-allow">
-      <span class="ra-label" title="Only these IPv4 addresses/subnets may reach this route (e.g. your VPN). Blank = open to anyone who can reach this host.">🔒 Allow from</span>
-      <input class="rcidr" placeholder="e.g. 10.30.0.0/16, 127.0.0.1  —  blank = public" value="${esc(allow)}" />
+      <span class="ra-label" title="Only these IPs/subnets/hostnames may reach this route (e.g. your VPN). Hostnames are resolved via DNS and refreshed. Blank = open to anyone who can reach this host.">🔒 Allow from</span>
+      <input class="rcidr" placeholder="e.g. 10.30.0.0/16, vpn.example.com  —  blank = public" value="${esc(allow)}" />
     </div>
   </div>`;
 }

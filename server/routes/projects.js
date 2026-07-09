@@ -6,6 +6,7 @@ import * as git from '../git.js';
 import * as docker from '../docker.js';
 import * as envlib from '../env.js';
 import * as filelib from '../files.js';
+import * as hostallow from '../hostallow.js';
 import * as oplog from '../oplog.js';
 
 const router = express.Router();
@@ -512,8 +513,8 @@ router.put(
       for (const c of rawCidrs) {
         const s = String(c).trim();
         if (!s) continue;
-        if (!/^(\d{1,3}\.){3}\d{1,3}(\/(3[0-2]|[12]?\d))?$/.test(s)) {
-          return res.status(400).json({ error: `Invalid IPv4 CIDR/IP "${s}" (e.g. 10.30.0.0/16).` });
+        if (!hostallow.isIpEntry(s) && !hostallow.isHostname(s)) {
+          return res.status(400).json({ error: `Invalid entry "${s}" — use an IPv4 CIDR/IP (10.30.0.0/16) or a hostname (vpn.example.com).` });
         }
         allowCidrs.push(s);
       }

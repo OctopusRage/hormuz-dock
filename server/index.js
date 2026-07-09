@@ -11,6 +11,7 @@ import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
 import logsRouter from './routes/logs.js';
 import * as store from './store.js';
+import * as hostallow from './hostallow.js';
 import { staticMiddleware } from './staticserve.js';
 import * as auth from './auth.js';
 import * as ssh from './ssh.js';
@@ -148,6 +149,12 @@ server.on('upgrade', (req, socket, head) => {
   if (handleProxyUpgrade(req, socket, head)) return;
   socket.destroy();
 });
+
+// Warm allowlist hostnames (panel + per-route) so DNS-based rules match on the
+// first request, then keep them refreshed so they follow DNS changes.
+const routeHosts = store.listProjects().flatMap((p) => (p.routes || []).flatMap((r) => r.allowCidrs || []));
+await hostallow.warm([...PANEL_ALLOW_CIDRS, ...routeHosts]);
+hostallow.startRefresh();
 
 server.listen(PORT, () => {
   console.log(`AppHub running on http://localhost:${PORT}`);

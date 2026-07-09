@@ -1,5 +1,6 @@
 import httpProxy from 'http-proxy';
 import * as store from './store.js';
+import * as hostallow from './hostallow.js';
 
 const proxy = httpProxy.createProxyServer({ ws: true, xfwd: true });
 
@@ -126,10 +127,16 @@ function ipInCidr(ip, cidr) {
   return (ipN & mask) === (rN & mask);
 }
 
-/** True if `ip` matches any of the CIDRs (loopback always allowed). */
-export function ipMatchesCidrs(ip, cidrs) {
+/** Match one allowlist entry (IPv4 CIDR/IP, or a hostname resolved via DNS). */
+function entryMatches(ip, entry) {
+  if (hostallow.isHostname(entry)) return hostallow.hostIps(entry).includes(ip);
+  return ipInCidr(ip, entry);
+}
+
+/** True if `ip` matches any allowlist entry (loopback always allowed). */
+export function ipMatchesCidrs(ip, entries) {
   if (ip === '127.0.0.1' || ip === '::1') return true;
-  return !!ip && cidrs.some((c) => ipInCidr(ip, c));
+  return !!ip && entries.some((e) => entryMatches(ip, e));
 }
 
 /** Allow if no allowlist is set, else the client IP must match one CIDR. */

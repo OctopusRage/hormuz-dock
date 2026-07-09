@@ -502,7 +502,8 @@
             <code>chat</code> + port <code>9999</code> makes
             <code>&lt;this-host&gt;/_chat</code> serve your app on 9999
             (WebSockets included). Set <b>🔒 Allow from</b> to restrict a route to your
-            VPN/IP (e.g. <code>10.30.0.0/16</code>) — blank means open to anyone who can reach this host.
+            VPN — an IPv4 CIDR/IP (<code>10.30.0.0/16</code>) or a hostname
+            (<code>vpn.example.com</code>, resolved via DNS &amp; auto-refreshed). Blank = open.
           </p>
           <div id="routes-rows"></div>
           <button id="routes-add" class="ghost">+ Add route</button>
