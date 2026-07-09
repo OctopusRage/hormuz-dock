@@ -149,6 +149,12 @@ export function proxyMiddleware(req, res, next) {
 
   // Per-route IP allowlist (e.g. VPN-only): reject clients outside the CIDRs.
   if (!routeAllowsClient(route, req)) {
+    console.warn(
+      `[proxy] blocked ${route.path} — client=${clientIp(req)} ` +
+        `x-real-ip=${req.headers['x-real-ip'] || '-'} ` +
+        `x-forwarded-for=${req.headers['x-forwarded-for'] || '-'} ` +
+        `allow=${(route.allowCidrs || []).join(',')}`
+    );
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden: this route is restricted to allowed networks.');
     return;
