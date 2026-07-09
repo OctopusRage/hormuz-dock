@@ -32,3 +32,13 @@ export const COMPOSE_FILES = [
 
 // GUI-editable override layer merged on top of the repo's compose file.
 export const OVERRIDE_FILE = 'docker-compose.override.yml';
+
+// Restrict the Hormuz admin panel (UI + /api) to these IPv4 CIDRs, e.g. the VPN
+// egress. Empty = open to anyone who can reach the host. Proxy routes (/_<slug>)
+// and static sites (/_static_/) stay public regardless. Set via env so a bad
+// value can't lock you out of the UI (fix the env + restart). Loopback is always
+// allowed (health checks).
+export const PANEL_ALLOW_CIDRS = (process.env.HORMUZ_PANEL_ALLOW_CIDRS || '')
+  .split(/[\s,]+/)
+  .map((s) => s.trim())
+  .filter(Boolean);

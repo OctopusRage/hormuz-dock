@@ -85,7 +85,7 @@ function targetFor(route) {
  * socket peer. Requires nginx to set these headers (proxy_set_header X-Real-IP
  * $remote_addr / X-Forwarded-For $proxy_add_x_forwarded_for).
  */
-function clientIp(req) {
+export function clientIp(req) {
   let ip = req.headers['x-real-ip'];
   if (!ip) {
     const xff = req.headers['x-forwarded-for'];
@@ -126,12 +126,17 @@ function ipInCidr(ip, cidr) {
   return (ipN & mask) === (rN & mask);
 }
 
+/** True if `ip` matches any of the CIDRs (loopback always allowed). */
+export function ipMatchesCidrs(ip, cidrs) {
+  if (ip === '127.0.0.1' || ip === '::1') return true;
+  return !!ip && cidrs.some((c) => ipInCidr(ip, c));
+}
+
 /** Allow if no allowlist is set, else the client IP must match one CIDR. */
 export function routeAllowsClient(route, req) {
   const cidrs = route.allowCidrs;
   if (!cidrs || !cidrs.length) return true;
-  const ip = clientIp(req);
-  return !!ip && cidrs.some((c) => ipInCidr(ip, c));
+  return ipMatchesCidrs(clientIp(req), cidrs);
 }
 
 // Strip the route prefix so the backend app sees a root-relative path.

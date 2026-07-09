@@ -102,6 +102,10 @@ if [ ! -f "$ENV_FILE" ]; then
 PORT=$PORT
 DATA_DIR=$DATA_DIR
 ADMIN_PASSWORD=$NEW_PW
+# Restrict the admin panel (UI + /api) to networks, e.g. your VPN egress IP.
+# Proxy routes (/_slug) and static sites stay public. Comma-separated IPv4
+# CIDRs; empty/unset = open. Restart the service after changing.
+#HORMUZ_PANEL_ALLOW_CIDRS=10.0.0.0/8
 EOF
   chmod 600 "$ENV_FILE"
 else

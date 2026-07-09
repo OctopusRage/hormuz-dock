@@ -2,7 +2,7 @@ import express from 'express';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PORT, ROOT } from './config.js';
+import { PORT, ROOT, PANEL_ALLOW_CIDRS } from './config.js';
 import { run } from './exec.js';
 import projectsRouter from './routes/projects.js';
 import staticSitesRouter from './routes/static.js';
@@ -17,7 +17,7 @@ import * as ssh from './ssh.js';
 import * as docker from './docker.js';
 import { auditMiddleware } from './audit.js';
 import { setupTerminal, handleExecUpgrade, EXEC_PATH } from './terminal.js';
-import { proxyMiddleware, handleProxyUpgrade } from './proxy.js';
+import { proxyMiddleware, handleProxyUpgrade, clientIp, ipMatchesCidrs } from './proxy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -44,6 +44,17 @@ app.use(staticMiddleware);
 // Reverse proxy for configured routes (e.g. /_chat -> :9999). Runs before
 // body parsing and auth, so proxied apps stay publicly reachable.
 app.use(proxyMiddleware);
+
+// Optionally restrict the admin panel (UI + /api) to allowed networks (e.g. the
+// VPN). Runs AFTER the proxy + static-site middleware, so /_<slug> routes and
+// /_static_/ sites stay public — only the panel itself is gated.
+if (PANEL_ALLOW_CIDRS.length) {
+  console.log(`Admin panel restricted to: ${PANEL_ALLOW_CIDRS.join(', ')} (+ loopback)`);
+  app.use((req, res, next) => {
+    if (ipMatchesCidrs(clientIp(req), PANEL_ALLOW_CIDRS)) return next();
+    res.status(403).type('txt').send('Hormuz Dock admin is restricted to allowed networks (VPN).');
+  });
+}
 
 app.use(express.json({ limit: '20mb' })); // room for base64 file uploads via the Files manager
 
@@ -118,6 +129,12 @@ setupTerminal(); // registers the exec WebSocket connection handler
 server.on('upgrade', (req, socket, head) => {
   const pathname = req.url.split('?')[0];
   if (pathname === EXEC_PATH) {
+    // The shell is part of the panel — gate it to allowed networks too.
+    if (PANEL_ALLOW_CIDRS.length && !ipMatchesCidrs(clientIp(req), PANEL_ALLOW_CIDRS)) {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
+    }
     // The shell is powerful — require an authenticated user.
     const user = auth.currentUser(req);
     if (!user) {
