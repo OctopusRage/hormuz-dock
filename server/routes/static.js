@@ -30,11 +30,21 @@ function withUrl(s) {
   return { ...s, url: `${STATIC_PREFIX}/${s.slug}/` };
 }
 
-// List all static sites.
+// List all static sites (git-backed ones include their latest commit).
 router.get(
   '/',
   h(async (req, res) => {
-    res.json(staticstore.listSites().map(withUrl));
+    const sites = staticstore.listSites();
+    const out = await Promise.all(
+      sites.map(async (s) => {
+        let commit = null;
+        if (s.source === 'git') {
+          try { commit = await git.lastCommit(s.dir); } catch { /* ignore */ }
+        }
+        return { ...withUrl(s), commit };
+      })
+    );
+    res.json(out);
   })
 );
 
@@ -55,7 +65,7 @@ router.post(
       return res.status(409).json({ error: `A static site named "${slug}" already exists` });
     }
 
-    const site = await staticstore.createSite({ name, source, gitUrl, branch, publishDir });
+    const site = await staticstore.createSite({ name, source, gitUrl, branch, publishDir, createdBy: req.user?.username });
 
     if (source === 'git') {
       try {

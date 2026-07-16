@@ -517,6 +517,21 @@ function renderStatics() {
   if (c) c.textContent = statics.length || '';
 }
 
+function staticMeta(s) {
+  const bits = [];
+  if (s.createdBy) bits.push(`<span title="Created by">👤 ${esc(s.createdBy)}</span>`);
+  if (s.commit) {
+    bits.push(
+      `<span title="${esc(s.commit.subject)} — ${esc(s.commit.author)}, ${esc(s.commit.relative)}">` +
+        `⎇ <code>${esc(s.commit.hash)}</code> ${esc(truncate(s.commit.subject, 38))} ` +
+        `<span class="dim">· ${esc(s.commit.author)}, ${esc(s.commit.relative)}</span></span>`
+    );
+  } else if (s.createdAt) {
+    bits.push(`<span title="Created">🕑 added ${esc(relativeTime(s.createdAt))}</span>`);
+  }
+  return bits.length ? `<div class="project-meta">${bits.join('<span class="dim"> · </span>')}</div>` : '';
+}
+
 function staticCard(s) {
   const pub = s.publishDir && s.publishDir !== '.' ? s.publishDir : '(root)';
   return `
@@ -525,6 +540,7 @@ function staticCard(s) {
       <div>
         <h3 class="project-name">${esc(s.name)}</h3>
         <div class="project-git">${s.source === 'git' ? esc(s.gitUrl) + (s.branch ? ' @ ' + esc(s.branch) : '') : 'uploaded files'}</div>
+        ${staticMeta(s)}
         <div class="ports-line">
           <span class="ports-label">URL:</span>
           <a class="route" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)} ↗</a>

@@ -45,7 +45,7 @@ export function findBySlug(slug) {
   return state.sites.find((s) => s.slug === slug) || null;
 }
 
-export async function createSite({ name, source, gitUrl, branch, publishDir }) {
+export async function createSite({ name, source, gitUrl, branch, publishDir, createdBy }) {
   const slug = slugify(name);
   const id = crypto.randomUUID();
   const site = {
@@ -57,6 +57,7 @@ export async function createSite({ name, source, gitUrl, branch, publishDir }) {
     branch: source === 'git' ? branch || null : null,
     publishDir: publishDir || '.',
     dir: path.join(STATIC_DIR, slug),
+    createdBy: createdBy || null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
