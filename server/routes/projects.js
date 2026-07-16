@@ -77,6 +77,12 @@ router.get(
         } catch {
           /* docker may be down; report anyway */
         }
+        let commit = null;
+        try {
+          commit = await git.lastCommit(p.dir);
+        } catch {
+          /* not a git repo (uploaded) or git missing */
+        }
         // Collect unique published host ports across all containers.
         const ports = [
           ...new Set(
@@ -88,6 +94,7 @@ router.get(
           status: docker.deriveStatus(containers),
           containerCount: containers.length,
           ports,
+          commit,
         };
       })
     );
@@ -108,7 +115,7 @@ router.post(
       return res.status(409).json({ error: `A project named "${slug}" already exists` });
     }
 
-    const project = await store.createProject({ name, gitUrl, branch });
+    const project = await store.createProject({ name, gitUrl, branch, createdBy: req.user?.username });
 
     try {
       await git.clone(gitUrl, project.dir, branch);
@@ -239,7 +246,10 @@ router.post(
         docker.up(p, { build: true, onData })
       );
       const containers = await docker.ps(p);
-      await store.updateProject(p.id, { status: docker.deriveStatus(containers) });
+      await store.updateProject(p.id, {
+        status: docker.deriveStatus(containers),
+        lastDeployedAt: new Date().toISOString(),
+      });
       return { ok: true, output, status: docker.deriveStatus(containers) };
     });
     res.json(result);
@@ -263,7 +273,10 @@ router.post(
         onData('\n$ docker compose up -d --build\n');
         const upOut = await docker.up(store.getProject(p.id), { build: true, onData });
         const containers = await docker.ps(p);
-        await store.updateProject(p.id, { status: docker.deriveStatus(containers) });
+        await store.updateProject(p.id, {
+          status: docker.deriveStatus(containers),
+          lastDeployedAt: new Date().toISOString(),
+        });
         return {
           ok: true,
           output: `$ git pull\n${pullOut}\n\n$ docker compose up -d --build\n${upOut}`,
@@ -290,7 +303,10 @@ for (const [action, fn] of [
         if (action === 'start') await preflight(p);
         const output = await oplog.withOpLog(p.id, action, (onData) => fn(p, { onData }));
         const containers = await docker.ps(p);
-        await store.updateProject(p.id, { status: docker.deriveStatus(containers) });
+        await store.updateProject(p.id, {
+          status: docker.deriveStatus(containers),
+          ...(action === 'start' ? { lastDeployedAt: new Date().toISOString() } : {}),
+        });
         return { ok: true, output, status: docker.deriveStatus(containers) };
       });
       res.json(result);

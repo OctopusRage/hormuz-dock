@@ -46,6 +46,22 @@ function fmtBytes(n) {
   return `${n.toFixed(1)} ${u[i]}`;
 }
 
+function relativeTime(iso) {
+  if (!iso) return '';
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 45) return 'just now';
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24); if (d < 30) return `${d}d ago`;
+  const mo = Math.floor(d / 30); if (mo < 12) return `${mo}mo ago`;
+  return `${Math.floor(mo / 12)}y ago`;
+}
+
+function truncate(s, n) {
+  s = String(s ?? '');
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
 let projects = [];
 let statsTimer = null;
 const projMem = {}; // projectId -> latest total memBytes
@@ -190,6 +206,21 @@ function switchMainTab(name) {
 }
 $$('.mtab').forEach((t) => t.addEventListener('click', () => switchMainTab(t.dataset.mtab)));
 
+// Provenance line: who created it, the current commit, and last deploy time.
+function projectMeta(p) {
+  const bits = [];
+  if (p.createdBy) bits.push(`<span title="Created by">👤 ${esc(p.createdBy)}</span>`);
+  if (p.commit) {
+    bits.push(
+      `<span title="${esc(p.commit.subject)} — ${esc(p.commit.author)}, ${esc(p.commit.relative)}">` +
+        `⎇ <code>${esc(p.commit.hash)}</code> ${esc(truncate(p.commit.subject, 38))} ` +
+        `<span class="dim">· ${esc(p.commit.author)}, ${esc(p.commit.relative)}</span></span>`
+    );
+  }
+  if (p.lastDeployedAt) bits.push(`<span title="Last start/rebuild">🚀 deployed ${esc(relativeTime(p.lastDeployedAt))}</span>`);
+  return bits.length ? `<div class="project-meta">${bits.join('<span class="dim"> · </span>')}</div>` : '';
+}
+
 function projectCard(p) {
   return `
   <div class="project" data-id="${p.id}">
@@ -197,6 +228,7 @@ function projectCard(p) {
       <div>
         <h3 class="project-name">${esc(p.name)}</h3>
         <div class="project-git">${esc(p.gitUrl)}${p.branch ? ' @ ' + esc(p.branch) : ''}</div>
+        ${projectMeta(p)}
         <div class="ports-line">${portLinks(p.ports)}</div>
         ${routeLinks(p.routes)}
       </div>

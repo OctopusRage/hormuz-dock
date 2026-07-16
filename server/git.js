@@ -91,6 +91,18 @@ export async function checkout(dir, branch) {
   return co.stdout + co.stderr;
 }
 
+/** Latest commit of a repo: { hash, subject, author, relative, iso } or null. */
+export async function lastCommit(dir) {
+  const res = await run('git', ['log', '-1', '--format=%h%x1f%s%x1f%an%x1f%ar%x1f%aI'], {
+    cwd: dir,
+    timeout: 15 * 1000,
+  });
+  if (res.code !== 0) return null;
+  const [hash, subject, author, relative, iso] = res.stdout.trim().split('\x1f');
+  if (!hash) return null;
+  return { hash, subject, author, relative, iso };
+}
+
 /** Return the first matching compose file name in a dir, or null. */
 export function detectComposeFile(dir) {
   for (const f of COMPOSE_FILES) {

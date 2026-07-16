@@ -55,7 +55,7 @@ export function findBySlug(slug) {
   return state.projects.find((p) => p.slug === slug) || null;
 }
 
-export async function createProject({ name, gitUrl, branch, type, source, publishDir }) {
+export async function createProject({ name, gitUrl, branch, type, source, publishDir, createdBy }) {
   const slug = slugify(name);
   const id = crypto.randomUUID();
   const project = {
@@ -71,6 +71,8 @@ export async function createProject({ name, gitUrl, branch, type, source, publis
     composeFile: null,
     routes: [],
     status: 'stopped',
+    createdBy: createdBy || null,
+    lastDeployedAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
