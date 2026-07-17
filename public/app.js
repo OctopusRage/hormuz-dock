@@ -104,6 +104,18 @@ function renderMemoryBar() {
     `<div class="mseg ${cls}" style="width:${((bytes / memTotal) * 100).toFixed(3)}%${color ? `;background:${color}` : ''}"
       title="${esc(label)} — ${fmtBytes(bytes)}"><span>${esc(label)} · ${fmtBytes(bytes)}</span></div>`;
 
+  // Until the first stats sweep lands (seconds on a small host), we genuinely
+  // don't know usage yet — say so instead of claiming "0 B used / all free".
+  const measured = projects.some((p) => projMem[p.id] != null);
+  if (!measured) {
+    el.querySelector('.membar-track').innerHTML =
+      `<div class="mseg free measuring" style="width:100%"><span>Measuring…</span></div>`;
+    el.querySelector('.membar-cap').innerHTML =
+      `Memory · <span class="dim">measuring usage…</span> · ${fmtBytes(memTotal)} total`;
+    el.hidden = false;
+    return;
+  }
+
   el.querySelector('.membar-track').innerHTML =
     used.map((u) => seg(u.name, u.mem, u.color)).join('') + seg('Free', free, null, 'free');
   el.querySelector('.membar-cap').innerHTML =
@@ -339,10 +351,19 @@ function esc(s) {
 }
 
 // ---------- Stats polling ----------
+let statsBusy = false; // a sweep can outlast the 4s tick on a slow host
+
 async function refreshStats() {
   if (!$('#auto-refresh').checked) return;
-  await Promise.all(projects.map(updateProjectStats));
-  renderMemoryBar();
+  if (statsBusy) return; // don't pile concurrent `docker stats` onto a busy host
+  statsBusy = true;
+  try {
+    // allSettled: one unhappy project must not stop the memory bar from updating.
+    await Promise.allSettled(projects.map(updateProjectStats));
+    renderMemoryBar();
+  } finally {
+    statsBusy = false;
+  }
 }
 
 async function updateProjectStats(p) {
@@ -1920,8 +1941,12 @@ async function initApp() {
   await loadSystem();
   await loadProjects();
   await loadStatics();
-  await refreshStats();
-  await loadStorage();
+  // Storage (~70ms) is independent of stats — never queue it behind the stats
+  // sweep, which shells out to `docker stats` per project and takes seconds on a
+  // small host. Fire both off and let each land when it's ready; timers are
+  // registered immediately so a slow/failed first pass can't stop refreshing.
+  refreshStats();
+  loadStorage();
   statsTimer = setInterval(refreshStats, 4000);
   setInterval(loadSystem, 10000);
   setInterval(loadStorage, 20000); // docker ps -s is heavier — poll less often

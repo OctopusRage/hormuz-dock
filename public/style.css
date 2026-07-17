@@ -182,6 +182,10 @@ button.sm { padding: 7px 13px; font-size: 12.5px; border-radius: 8px; }
 .mseg span { padding: 0 9px; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.55); }
 .mseg.free { background: var(--panel-3); color: var(--muted); }
 .mseg.free span { text-shadow: none; }
+/* First paint, before the stats sweep lands — don't imply "nothing is running". */
+.membar-cap .dim { opacity: 0.7; }
+.mseg.measuring { background: linear-gradient(90deg, var(--panel-3) 25%, var(--panel-2) 50%, var(--panel-3) 75%); background-size: 200% 100%; animation: measuring 1.2s ease-in-out infinite; }
+@keyframes measuring { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 .projects { margin-top: 8px; }
 
