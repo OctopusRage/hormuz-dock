@@ -760,12 +760,35 @@ function currentPairs() {
     value: $('.v', r).value,
   })).filter((p) => p.key);
 }
+// .env quoting for the raw <-> form tabs. These MUST stay the exact inverse of
+// each other AND match server/env.js (unquote/quoteValue) — the server re-quotes
+// whatever the form sends, so a client that hands back an already-quoted value
+// gets it wrapped again, and the value grows a quote layer on every round-trip.
+function envUnquote(s) {
+  if (s.length >= 2 && s[0] === "'" && s[s.length - 1] === "'") return s.slice(1, -1);
+  if (s.length >= 2 && s[0] === '"' && s[s.length - 1] === '"') {
+    return s.slice(1, -1).replace(/\\(["\\$nrt])/g, (_, c) =>
+      ({ '"': '"', '\\': '\\', $: '$', n: '\n', r: '\r', t: '\t' }[c])
+    );
+  }
+  return s;
+}
+function envQuote(v) {
+  if (v === '') return '';
+  if (/^[^\s'"#$\\`]+$/.test(v)) return v;
+  if (!v.includes("'")) return `'${v}'`;
+  return `"${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$')}"`;
+}
+
 function pairsToRaw() {
-  return currentPairs().map((p) => `${p.key}=${p.value}`).join('\n') + '\n';
+  return currentPairs().map((p) => `${p.key}=${envQuote(p.value)}`).join('\n') + '\n';
 }
 function rawToPairs(raw) {
   return raw.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && l.includes('='))
-    .map((l) => { const i = l.indexOf('='); return { key: l.slice(0, i).trim(), value: l.slice(i + 1).trim() }; });
+    .map((l) => {
+      const i = l.indexOf('=');
+      return { key: l.slice(0, i).trim(), value: envUnquote(l.slice(i + 1).trim()) };
+    });
 }
 
 $('#env-save').addEventListener('click', async () => {
