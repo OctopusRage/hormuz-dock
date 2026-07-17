@@ -276,6 +276,10 @@ button.sm { padding: 7px 13px; font-size: 12.5px; border-radius: 8px; }
   box-shadow: var(--shadow-lg);
 }
 .project:hover::before { opacity: 1; }
+/* The hover transform above makes each card its own stacking context, so an open
+   ⋯ menu can't escape it — the next row of cards would paint over the menu. Lift
+   the whole card while its menu is open. */
+.project.menu-open { z-index: 20; }
 
 .project-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
 .project-name { margin: 0; font-size: 16px; letter-spacing: -0.01em; }

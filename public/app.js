@@ -396,12 +396,23 @@ async function updateProjectStats(p) {
 }
 
 // ---------- Overflow menu (⋯) on project cards ----------
+// A card's :hover transform creates a stacking context, which traps the menu's
+// z-index inside the card — later cards in the grid would then paint over the
+// open menu. Marking the owning card lifts the whole card (and its menu) above
+// its siblings for as long as the menu is open.
+function syncMenuOpenCards() {
+  $$('.project').forEach((card) =>
+    card.classList.toggle('menu-open', !!card.querySelector('.menu:not([hidden])'))
+  );
+}
+
 document.addEventListener('click', (e) => {
   const menuBtn = e.target.closest('[data-menu]');
   const openMenu = menuBtn ? menuBtn.parentElement.querySelector('.menu') : null;
   // Close every menu except the one we're toggling open.
   $$('.menu').forEach((m) => { if (m !== openMenu) m.hidden = true; });
   if (menuBtn) openMenu.hidden = !openMenu.hidden;
+  syncMenuOpenCards();
 });
 
 // ---------- Actions ----------
