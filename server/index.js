@@ -9,6 +9,7 @@ import staticSitesRouter from './routes/static.js';
 import secureEnvRouter from './routes/secure-env.js';
 import authRouter from './routes/auth.js';
 import usersRouter from './routes/users.js';
+import apiKeysRouter from './routes/api-keys.js';
 import logsRouter from './routes/logs.js';
 import * as store from './store.js';
 import * as hostallow from './hostallow.js';
@@ -67,18 +68,29 @@ app.use('/api/auth', authRouter);
 app.use('/api', auth.requireAuth);
 app.use(auditMiddleware);
 
+// The caller's identity (works with either a session cookie or an API key) —
+// handy for an AI agent to confirm its key is valid and see its role.
+app.get('/api/me', (req, res) => {
+  res.json({ id: req.user.id, username: req.user.username, role: req.user.role, authVia: req.authVia });
+});
+
 app.use('/api/projects', projectsRouter);
 app.use('/api/static-sites', staticSitesRouter);
-app.use('/api/secure-env', secureEnvRouter);
-app.use('/api/users', usersRouter);
+app.use('/api/api-keys', apiKeysRouter);
 app.use('/api/logs', logsRouter);
 
-// Docker disk usage + image prune (admin) — reclaim storage.
+// Identity/secret plane — session-only (never reachable with an API key), so a
+// leaked key cannot manage users, mint keys, or read the global secret store.
+app.use('/api/secure-env', auth.requireSession, secureEnvRouter);
+app.use('/api/users', auth.requireSession, usersRouter);
+
+// Docker disk usage + image prune (admin) — reclaim storage. Prune is
+// destructive, so it's session-only (no API keys).
 app.get('/api/system/disk', auth.requireAdmin, async (req, res) => {
   try { res.json(await docker.systemDf()); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
-app.post('/api/system/prune', auth.requireAdmin, async (req, res) => {
+app.post('/api/system/prune', auth.requireSession, auth.requireAdmin, async (req, res) => {
   try { res.json(await docker.prune(req.body || {})); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -92,8 +104,9 @@ app.get('/api/system/storage', async (req, res) => {
 });
 
 // SSH deploy key (admin) — view / generate the key to add to a git host.
-app.get('/api/ssh-key', auth.requireAdmin, (req, res) => res.json(ssh.readPublicKey()));
-app.post('/api/ssh-key', auth.requireAdmin, async (req, res) => {
+// Key material: session-only (no API keys).
+app.get('/api/ssh-key', auth.requireSession, auth.requireAdmin, (req, res) => res.json(ssh.readPublicKey()));
+app.post('/api/ssh-key', auth.requireSession, auth.requireAdmin, async (req, res) => {
   try { res.json(await ssh.generateKey()); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -119,6 +132,11 @@ app.get('/api/system', async (req, res) => {
     res.json({ dockerAvailable: false, error: err.message });
   }
 });
+
+// API docs (human + AI readable). No login required — it contains only usage
+// instructions, no data — so an agent can read how to drive Hormuz before it has
+// a valid key. (Still behind the panel network gate above, if one is set.)
+app.get('/docs', (req, res) => res.sendFile(path.join(ROOT, 'public', 'docs.html')));
 
 // Static frontend
 app.use(express.static(path.join(ROOT, 'public')));

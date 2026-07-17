@@ -1578,6 +1578,8 @@ function renderUserbar() {
     ${admin ? '<button class="sm ghost" id="btn-sshkey">SSH key</button>' : ''}
     ${admin ? '<button class="sm ghost" id="btn-secure">Global Secret Env</button>' : ''}
     ${admin ? '<button class="sm ghost" id="btn-prune">Prune</button>' : ''}
+    <button class="sm ghost" id="btn-keys">API Keys</button>
+    <a class="sm ghost" id="btn-docs" href="/docs" target="_blank" rel="noopener">API Docs</a>
     <button class="sm ghost" id="btn-audit">Audit log</button>
     <button class="sm ghost" id="btn-pass">Password</button>
     <button class="sm ghost" id="btn-logout">Logout</button>`;
@@ -1585,6 +1587,7 @@ function renderUserbar() {
   if (admin) $('#btn-sshkey').addEventListener('click', openSshKey);
   if (admin) $('#btn-secure').addEventListener('click', openSecure);
   if (admin) $('#btn-prune').addEventListener('click', openPrune);
+  $('#btn-keys').addEventListener('click', openApiKeys);
   $('#btn-audit').addEventListener('click', openAudit);
   $('#btn-pass').addEventListener('click', changePassword);
   $('#btn-logout').addEventListener('click', logout);
@@ -1846,6 +1849,68 @@ async function loadAudit() {
     .join('') || '<tr><td colspan="5" class="muted">No entries.</td></tr>';
 }
 $('#audit-refresh').addEventListener('click', loadAudit);
+
+// ---------- API keys modal ----------
+async function openApiKeys() {
+  $('#keys-msg').textContent = '';
+  $('#keys-msg').className = 'msg';
+  $('#key-name').value = '';
+  $('#key-reveal').hidden = true;
+  $('#keys-modal').hidden = false;
+  await loadApiKeys();
+}
+async function loadApiKeys() {
+  let keys = [];
+  try { keys = await api.get('/api/api-keys'); }
+  catch (e) { $('#keys-msg').className = 'msg err'; $('#keys-msg').textContent = e.message; return; }
+  $('#keys-empty').hidden = keys.length > 0;
+  $('#keys-rows').innerHTML = keys
+    .map((k) => {
+      const revoked = !!k.revoked_at;
+      return `<tr class="${revoked ? 'revoked' : ''}">
+        <td>${esc(k.name || '—')}</td>
+        <td><code>${esc(k.prefix)}…</code></td>
+        <td class="muted">${esc(relativeTime(k.created_at))}</td>
+        <td class="muted">${k.last_used_at ? esc(relativeTime(k.last_used_at)) : 'never'}</td>
+        <td>${revoked
+          ? '<span class="muted">revoked</span>'
+          : `<button class="sm danger" data-revoke="${k.id}">Revoke</button>`}</td>
+      </tr>`;
+    })
+    .join('');
+  $$('#keys-rows [data-revoke]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      if (!confirm('Revoke this key? Any script or agent using it will stop working immediately.')) return;
+      try { await api.send('DELETE', `/api/api-keys/${b.dataset.revoke}`); await loadApiKeys(); }
+      catch (e) { $('#keys-msg').className = 'msg err'; $('#keys-msg').textContent = e.message; }
+    })
+  );
+}
+async function createApiKey() {
+  const name = $('#key-name').value.trim();
+  $('#keys-msg').textContent = '';
+  $('#key-create').disabled = true;
+  try {
+    const created = await api.send('POST', '/api/api-keys', { name });
+    $('#key-plaintext').textContent = created.key;
+    $('#key-reveal').hidden = false;
+    $('#key-name').value = '';
+    await loadApiKeys();
+  } catch (e) {
+    $('#keys-msg').className = 'msg err';
+    $('#keys-msg').textContent = e.message;
+  } finally {
+    $('#key-create').disabled = false;
+  }
+}
+$('#key-create').addEventListener('click', createApiKey);
+$('#key-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') createApiKey(); });
+$('#key-copy').addEventListener('click', async () => {
+  const txt = $('#key-plaintext').textContent;
+  try { await navigator.clipboard.writeText(txt); $('#key-copy').textContent = 'Copied ✓'; }
+  catch { $('#key-copy').textContent = 'Copy failed'; }
+  setTimeout(() => { $('#key-copy').textContent = 'Copy'; }, 1500);
+});
 
 // ---------- Boot ----------
 async function initApp() {

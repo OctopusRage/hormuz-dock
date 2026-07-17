@@ -372,6 +372,42 @@
       </div>
     </div>
 
+    <!-- API keys modal -->
+    <div id="keys-modal" class="modal" hidden>
+      <div class="modal-box wide">
+        <div class="modal-head">
+          <h3>API Keys</h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <div class="tab-panel">
+          <p class="hint" style="margin:0 0 12px">
+            Personal keys let scripts &amp; AI agents drive Hormuz over REST. A key inherits your role but
+            <b>cannot</b> manage users, keys, or global secrets. See <a href="/docs" target="_blank" rel="noopener">API Docs</a>.
+          </p>
+          <div class="keys-new">
+            <input id="key-name" placeholder="Key name (e.g. claude-deployer)" maxlength="60" />
+            <button id="key-create" class="primary">+ New key</button>
+          </div>
+          <div id="key-reveal" class="key-reveal" hidden>
+            <div class="key-reveal-head">Copy this key now — it won’t be shown again.</div>
+            <div class="key-reveal-row">
+              <code id="key-plaintext"></code>
+              <button id="key-copy" class="sm">Copy</button>
+            </div>
+          </div>
+          <table class="audit keys-table">
+            <thead><tr><th>Name</th><th>Key</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+            <tbody id="keys-rows"></tbody>
+          </table>
+          <div id="keys-empty" class="empty" hidden>No keys yet — create one to call the API.</div>
+        </div>
+        <div class="modal-foot">
+          <span id="keys-msg" class="msg"></span>
+          <button data-close class="ghost">Close</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Env editor modal -->
     <div id="env-modal" class="modal" hidden>
       <div class="modal-box">

@@ -107,16 +107,105 @@ export function currentUser(req) {
   return userForToken(sessionTokenFrom(req));
 }
 
+// ---------- API keys (for automation / AI agents) ----------
+// A key is `hormuz_<random>`. We store only its sha256 hash; the plaintext is
+// shown once at creation and never again. Keys authenticate the SAME identity as
+// their owner but are deliberately barred from the identity/secret/shell plane
+// (see requireSession + the route wiring in index.js).
+const API_KEY_PREFIX = 'hormuz_';
+
+export function hashApiKey(key) {
+  return crypto.createHash('sha256').update(String(key)).digest('hex');
+}
+
+/** Read a bearer token / X-API-Key header off a request (null if absent). */
+export function apiKeyFrom(req) {
+  const authz = req.headers['authorization'];
+  if (authz && /^bearer\s+/i.test(authz)) return authz.replace(/^bearer\s+/i, '').trim();
+  const x = req.headers['x-api-key'];
+  return x ? String(x).trim() : null;
+}
+
+/** Mint a new key for a user. Returns the DB record plus the one-time plaintext. */
+export function createApiKey({ userId, name }) {
+  const secret = crypto.randomBytes(24).toString('base64url');
+  const key = API_KEY_PREFIX + secret;
+  const prefix = key.slice(0, API_KEY_PREFIX.length + 6); // e.g. hormuz_Ab12Cd
+  const info = db
+    .prepare('INSERT INTO api_keys (user_id, name, prefix, hash, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(userId, (name || '').trim() || null, prefix, hashApiKey(key), new Date().toISOString());
+  return { ...getApiKeyById(info.lastInsertRowid), key };
+}
+
+export function getApiKeyById(id) {
+  return db.prepare('SELECT id, user_id, name, prefix, created_at, last_used_at, revoked_at FROM api_keys WHERE id = ?').get(id);
+}
+
+/** List a user's keys (metadata only — never the hash or plaintext). */
+export function listApiKeys(userId) {
+  return db
+    .prepare('SELECT id, user_id, name, prefix, created_at, last_used_at, revoked_at FROM api_keys WHERE user_id = ? ORDER BY id DESC')
+    .all(userId);
+}
+
+/** Revoke a key, but only if it belongs to `userId` (owner-scoped). */
+export function revokeApiKey(id, userId) {
+  const row = db.prepare('SELECT * FROM api_keys WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!row) return false;
+  db.prepare('UPDATE api_keys SET revoked_at = ? WHERE id = ?').run(new Date().toISOString(), id);
+  return true;
+}
+
+/** Resolve the user for a raw API key, updating last_used_at. Null if invalid/revoked. */
+export function userForApiKey(key) {
+  if (!key || !key.startsWith(API_KEY_PREFIX)) return null;
+  const row = db.prepare('SELECT * FROM api_keys WHERE hash = ?').get(hashApiKey(key));
+  if (!row || row.revoked_at) return null;
+  db.prepare('UPDATE api_keys SET last_used_at = ? WHERE id = ?').run(new Date().toISOString(), row.id);
+  return getUserById(row.user_id);
+}
+
 // ---------- middleware ----------
 export function requireAuth(req, res, next) {
-  const user = currentUser(req);
-  if (!user) return res.status(401).json({ error: 'Not authenticated' });
-  req.user = user;
-  next();
+  // Session cookie first — that's the interactive panel (browser UI).
+  const sessionUser = currentUser(req);
+  if (sessionUser) {
+    req.user = sessionUser;
+    req.authVia = 'session';
+    return next();
+  }
+  // Then an API key — automation / AI agents. Marks req.authVia='apikey' so the
+  // identity/secret/shell plane can refuse it (requireSession).
+  const key = apiKeyFrom(req);
+  if (key) {
+    const user = userForApiKey(key);
+    if (user) {
+      req.user = user;
+      req.authVia = 'apikey';
+      return next();
+    }
+    return res.status(401).json({ error: 'Invalid or revoked API key' });
+  }
+  return res.status(401).json({ error: 'Not authenticated' });
 }
 export function requireAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin only' });
+  }
+  next();
+}
+
+/**
+ * Gate for the security-sensitive plane (user/role management, API-key
+ * management, global secrets, shell, key material). These require an interactive
+ * browser session — an API key can never reach them, so a leaked key cannot
+ * escalate privileges, mint more keys, or exfiltrate secrets.
+ */
+export function requireSession(req, res, next) {
+  if (req.authVia === 'apikey') {
+    return res.status(403).json({
+      error: 'This endpoint is not available to API keys. Use the web panel (session login).',
+    });
   }
   next();
 }

@@ -52,6 +52,11 @@ function describe(req) {
     if (id && sub) return { action: labels[sub] || `${req.method} ${sub}`, kind: 'project', id };
     return { action: `${req.method} project`, kind: 'project', id };
   }
+  if (url.startsWith('/api/api-keys')) {
+    if (req.method === 'POST') return { action: 'Create API key', kind: null };
+    if (req.method === 'DELETE') return { action: 'Revoke API key', kind: null };
+    return { action: 'Manage API keys', kind: null };
+  }
   if (url.startsWith('/api/users')) {
     if (req.method === 'POST' && !/\/password$/.test(url)) return { action: 'Create user', kind: 'user-create' };
     if (req.method === 'POST') return { action: 'Reset password', kind: 'user', id: req.params.id };
@@ -87,7 +92,13 @@ export function auditMiddleware(req, res, next) {
   const target = resolveTarget(req, info); // capture now (entity may be deleted by handler)
   res.on('finish', () => {
     if (req.originalUrl.startsWith('/api/auth')) return;
-    logAction({ user: req.user, action: info.action, target, status: res.statusCode });
+    logAction({
+      user: req.user,
+      action: info.action,
+      target,
+      detail: req.authVia === 'apikey' ? 'via API key' : null,
+      status: res.statusCode,
+    });
   });
   next();
 }

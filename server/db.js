@@ -37,7 +37,21 @@ db.exec(`
     status     INTEGER
   );
 
+  CREATE TABLE IF NOT EXISTS api_keys (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL,
+    name         TEXT,                 -- human label ("claude-ci", "laptop")
+    prefix       TEXT NOT NULL,        -- first chars, shown for identification
+    hash         TEXT NOT NULL UNIQUE, -- sha256(full key); the plaintext is never stored
+    created_at   TEXT NOT NULL,
+    last_used_at TEXT,
+    revoked_at   TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
   CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+  CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
+  CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(hash);
 `);

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hormuz Dock — API docs</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<style>
+  :root {
+    --bg: #0f1420; --panel: #161d2c; --panel2: #1b2434; --line: #263047;
+    --fg: #e6ecf5; --muted: #94a3b8; --accent: #4c8dff; --accent2: #2ee6c9;
+    --code-bg: #0b0f18; --ok: #34d399; --warn: #fbbf24; --danger: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  a { color: var(--accent2); }
+  code, pre { font-family: "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 40px 22px 96px; }
+  header.top {
+    display: flex; align-items: center; gap: 14px; padding-bottom: 20px;
+    border-bottom: 1px solid var(--line); margin-bottom: 28px;
+  }
+  .logo {
+    width: 44px; height: 44px; border-radius: 12px; flex: 0 0 auto;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: grid; place-items: center; font-size: 24px;
+  }
+  h1 { margin: 0; font-size: 22px; }
+  .tagline { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  h2 {
+    font-size: 18px; margin: 40px 0 12px; padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  h2:first-of-type { border-top: 0; }
+  h3 { font-size: 15px; margin: 24px 0 8px; color: var(--accent2); }
+  p, li { color: #cbd5e1; }
+  code:not(pre code) {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 6px; font-size: 13px; color: #e2e8f0;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.55;
+  }
+  pre code { color: #d5deea; }
+  .tok-m { color: #7dd3fc; font-weight: 600; }   /* http method */
+  .tok-c { color: #64748b; }                       /* comment */
+  .callout {
+    border-radius: 10px; padding: 12px 16px; margin: 16px 0;
+    border: 1px solid var(--line); background: var(--panel);
+  }
+  .callout.warn { border-color: #7c5e1a; background: #241d0d; }
+  .callout.danger { border-color: #7c2020; background: #250f0f; }
+  .callout.good { border-color: #1c5745; background: #0d201a; }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td code { white-space: nowrap; }
+  .m {
+    display: inline-block; min-width: 46px; text-align: center; padding: 1px 7px;
+    border-radius: 5px; font-size: 11px; font-weight: 700; letter-spacing: .3px;
+  }
+  .m.get { background: #0e2a44; color: #7dd3fc; }
+  .m.post { background: #0f2e1f; color: #6ee7b7; }
+  .m.put { background: #2e2410; color: #fcd34d; }
+  .m.del { background: #2e1414; color: #fca5a5; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  ul.clean { list-style: none; padding-left: 0; }
+  ul.clean li { padding: 4px 0 4px 22px; position: relative; }
+  ul.clean li::before { content: "▸"; position: absolute; left: 4px; color: var(--accent); }
+  .no li::before { content: "✕"; color: var(--danger); }
+  .yes li::before { content: "✓"; color: var(--ok); }
+  footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  .back { color: var(--muted); text-decoration: none; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="logo">⚓</div>
+    <div>
+      <h1>Hormuz Dock — API</h1>
+      <p class="tagline">Drive your deployments programmatically. Built to be friendly for AI agents (Claude &amp; co.).</p>
+    </div>
+  </header>
+
+  <p>
+    Everything the web panel does for <strong>Docker projects</strong> and <strong>static sites</strong> is available over a small REST API.
+    Authenticate with a personal <strong>API key</strong> and you can list, deploy, restart, read logs, edit env, and more — no browser needed.
+  </p>
+  <p><a class="back" href="/">← Back to the panel</a></p>
+
+  <h2>1. Get an API key</h2>
+  <ol>
+    <li>Open the Hormuz panel → click <strong>API Keys</strong> in the top bar.</li>
+    <li>Click <strong>+ New key</strong>, give it a name (e.g. <code>claude-deployer</code>), and copy the key.</li>
+    <li>The key is shown <strong>once</strong> — store it safely. It looks like <code>hormuz_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</code>.</li>
+  </ol>
+  <p>A key inherits <strong>your</strong> role (regular user or admin) and appears in the audit log tagged <em>“via API key”</em>. Revoke it anytime from the same screen.</p>
+
+  <div class="callout warn">
+    <strong>Network access.</strong> The API lives behind the same gate as the panel. If your Hormuz is VPN-restricted
+    (<code>HORMUZ_PANEL_ALLOW_CIDRS</code>), API calls must also come from the VPN. Public reverse-proxy routes
+    (<code>/_&lt;slug&gt;</code>) and static sites (<code>/_static_/</code>) are unaffected.
+  </div>
+
+  <h2>2. Authenticate</h2>
+  <p>Send the key as a bearer token (or an <code>X-API-Key</code> header). Confirm it works with <code>/api/me</code>:</p>
+  <pre><code><span class="tok-c"># Base URL = wherever your panel lives, e.g. https://hormuz.qiscus.io</span>
+<span class="tok-m">curl</span> https://hormuz.qiscus.io/api/me \
+  -H "Authorization: Bearer hormuz_XXXXXXXXXXXXXXXXXXXXXXXX"
+
+<span class="tok-c"># → {"id":2,"username":"you","role":"user","authVia":"apikey"}</span></code></pre>
+
+  <h2>3. Security model — what a key can &amp; cannot do</h2>
+  <p>
+    API keys are deliberately scoped to the <strong>operational plane</strong>. They can run and manage projects, but they are
+    <strong>barred from the identity &amp; secret plane</strong> — so a leaked key can never escalate privileges, mint more keys,
+    or exfiltrate global secrets. Those actions require an interactive browser login.
+  </p>
+  <div style="display:flex; gap:16px; flex-wrap:wrap;">
+    <div class="callout good" style="flex:1; min-width:260px;">
+      <strong>✓ Allowed with a key</strong>
+      <ul class="clean yes">
+        <li>List / create / delete projects &amp; static sites</li>
+        <li>Start · stop · restart · rebuild · redeploy</li>
+        <li>Git pull, switch branch</li>
+        <li>Read logs, stats, container status</li>
+        <li>Read/write env, compose override, routes, files</li>
+        <li>System &amp; storage info</li>
+      </ul>
+    </div>
+    <div class="callout danger" style="flex:1; min-width:260px;">
+      <strong>✕ Blocked (403) — session only</strong>
+      <ul class="clean no">
+        <li>User &amp; role management (<code>/api/users</code>)</li>
+        <li>API-key management (<code>/api/api-keys</code>)</li>
+        <li>Global Secret Env (<code>/api/secure-env</code>)</li>
+        <li>Image prune (<code>/api/system/prune</code>)</li>
+        <li>SSH deploy key (<code>/api/ssh-key</code>)</li>
+        <li>The interactive shell (terminal WebSocket)</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout">
+    <strong>Tip for secrets.</strong> Don’t paste raw secrets into a project’s <code>.env</code> over the API. Instead reference the
+    admin-managed Global Secret Env with <code>@secure:&lt;scope&gt;/&lt;KEY&gt;</code>; Hormuz resolves it only at <code>compose up</code>.
+    The secret values themselves are never exposed to API keys.
+  </div>
+
+  <h2>4. Endpoint reference</h2>
+  <p>All endpoints are under <code>/api</code> and return JSON. Mutations are recorded in the audit log with your identity.</p>
+
+  <h3>Identity &amp; system</h3>
+  <table>
+    <tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/me</code></td><td>Who am I (verify the key)</td></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/system</code></td><td>Docker host summary (cpu, mem, versions, container counts)</td></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/system/storage</code></td><td>Per-container disk footprint + host disk usage</td></tr>
+  </table>
+
+  <h3>Docker projects</h3>
+  <table>
+    <tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/projects</code></td><td>List projects with live status, ports, last commit</td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/projects</code></td><td>Create — body <code>{name, gitUrl, branch?}</code> (repo must have a compose file)</td></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/projects/:id</code></td><td>One project + containers</td></tr>
+    <tr><td><span class="m del">DEL</span></td><td><code>/api/projects/:id</code></td><td>Compose down + delete</td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/projects/:id/start</code></td><td>Start (compose up -d)</td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/projects/:id/stop</code></td><td>Stop</td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/projects/:id/restart</code></td><td>Restart</td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/projects/:id/rebuild</code></td><td>Rebuild images + recreate (no pull)</td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/projects/:id/redeploy</code></td><td>Git pull → rebuild → recreate (one-click deploy)</td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/projects/:id/pull</code></td><td>Git pull only</td></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/projects/:id/branches</code></td><td>Current + remote branches</td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/projects/:id/branch</code></td><td>Switch branch — <code>{branch, rebuild?}</code></td></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/projects/:id/logs?service=&amp;tail=</code></td><td>Container logs (tail ≤ 2000)</td></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/projects/:id/stats</code></td><td>Live CPU/mem stats</td></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/projects/:id/op-stream</code></td><td>Live deploy log (SSE)</td></tr>
+    <tr><td><span class="m get">GET</span> <span class="m put">PUT</span></td><td><code>/api/projects/:id/env</code></td><td>Read / write <code>.env</code> — <code>{raw}</code> or <code>{pairs:[...]}</code></td></tr>
+    <tr><td><span class="m get">GET</span> <span class="m put">PUT</span></td><td><code>/api/projects/:id/compose</code></td><td>Read / write the compose override — <code>{override}</code></td></tr>
+    <tr><td><span class="m get">GET</span> <span class="m put">PUT</span></td><td><code>/api/projects/:id/routes</code></td><td>Read / write reverse-proxy routes</td></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/projects/:id/files</code></td><td>List files (excludes .git/node_modules)</td></tr>
+    <tr><td><span class="m get">GET</span> <span class="m put">PUT</span> <span class="m del">DEL</span></td><td><code>/api/projects/:id/file?path=</code></td><td>Read / write / delete one file</td></tr>
+  </table>
+
+  <h3>Static sites</h3>
+  <table>
+    <tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/static-sites</code></td><td>List sites (git sites include last commit)</td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/static-sites</code></td><td>Create — <code>{name, source:'git'|'upload', gitUrl?, branch?, publishDir?}</code></td></tr>
+    <tr><td><span class="m del">DEL</span></td><td><code>/api/static-sites/:id</code></td><td>Delete</td></tr>
+    <tr><td><span class="m put">PUT</span></td><td><code>/api/static-sites/:id/publish</code></td><td>Set publish dir — <code>{publishDir}</code></td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/static-sites/:id/pull</code></td><td>Git pull (git sites)</td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/static-sites/:id/unzip</code></td><td>Upload+extract a zip — <code>{contentBase64, path?}</code></td></tr>
+    <tr><td><span class="m put">PUT</span></td><td><code>/api/static-sites/:id/file</code></td><td>Write a file — <code>{path, content|contentBase64}</code></td></tr>
+  </table>
+  <p>Published at <code>/_static_/&lt;slug&gt;/</code>.</p>
+
+  <h2>5. Recipes</h2>
+
+  <h3>Deploy the latest code for a project</h3>
+  <pre><code><span class="tok-c"># find the project id</span>
+<span class="tok-m">curl</span> -s $BASE/api/projects -H "Authorization: Bearer $KEY" \
+  | jq -r '.[] | "\(.id)\t\(.name)\t\(.status)"'
+
+<span class="tok-c"># pull + rebuild + recreate</span>
+<span class="tok-m">curl</span> -X POST $BASE/api/projects/&lt;id&gt;/redeploy \
+  -H "Authorization: Bearer $KEY"</code></pre>
+
+  <h3>Read the last 200 log lines</h3>
+  <pre><code><span class="tok-m">curl</span> -s "$BASE/api/projects/&lt;id&gt;/logs?tail=200" \
+  -H "Authorization: Bearer $KEY" | jq -r .logs</code></pre>
+
+  <h3>Set an env var (referencing a global secret)</h3>
+  <pre><code><span class="tok-m">curl</span> -X PUT $BASE/api/projects/&lt;id&gt;/env \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"pairs":[{"key":"DATABASE_URL","value":"@secure:qismo/DATABASE_URL"},
+                {"key":"LOG_LEVEL","value":"info"}]}'</code></pre>
+
+  <h3>Publish a static site from git</h3>
+  <pre><code><span class="tok-m">curl</span> -X POST $BASE/api/static-sites \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"name":"Docs","source":"git","gitUrl":"https://github.com/acme/docs.git"}'</code></pre>
+
+  <div class="callout">
+    <strong>Errors.</strong> Non-2xx responses return <code>{"error":"…"}</code>.
+    <code>401</code> = missing/invalid/revoked key · <code>403</code> = key hit a session-only endpoint (or wrong role/network) ·
+    <code>404</code> = not found · <code>409</code> = an operation is already running for that project.
+  </div>
+
+  <footer>
+    Hormuz Dock · self-hosted Docker Compose &amp; static-site manager. This page is safe to share with an AI agent —
+    point it here and hand it a scoped API key.
+  </footer>
+</div>
+</body>
+</html>

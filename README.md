@@ -40,6 +40,10 @@ Re-run it any time to update. It prints the generated `admin` password on first 
 6. **Reverse proxy & access control** — expose apps under `/_<slug>` (WebSockets +
    optional CORS fix), and restrict a route or the whole admin panel to your VPN by
    IP/CIDR **or hostname** (see [Reverse proxy & access control](#reverse-proxy--access-control)).
+7. **API keys (AI-friendly)** — mint personal keys to drive Hormuz over REST from
+   scripts or AI agents (Claude &amp; co.). Keys are scoped to the operational plane
+   and **cannot** touch users, keys, or global secrets. Self-documenting at
+   [`/docs`](#api).
 
 ## Requirements
 
@@ -171,18 +175,34 @@ Blocked attempts are logged with the client IP (`journalctl -u hormuz-dock | gre
 
 ## API
 
+The REST API powers the panel and is open to **API keys** for automation and AI
+agents. Full, self-documenting reference lives at **`/docs`** (safe to hand to an
+AI agent). In short:
+
+- **Authenticate** with a personal key as `Authorization: Bearer hormuz_…` (or the
+  `X-API-Key` header). Create/revoke keys in the panel → **API Keys**.
+- A key inherits your role and is logged in the audit trail as *“via API key”*.
+- Keys are **barred (403)** from the identity/secret plane — `/api/users`,
+  `/api/api-keys`, `/api/secure-env`, `/api/system/prune`, `/api/ssh-key`, and the
+  web shell — so a leaked key can't escalate, mint keys, or read secrets. Those
+  need an interactive browser session.
+- The API shares the panel's network gate: if `HORMUZ_PANEL_ALLOW_CIDRS` is set,
+  API calls must also come from the allowed network (VPN).
+
 | Method | Path | Purpose |
 |--------|------|---------|
+| GET | `/api/me` | Who am I (verify a key) — returns `authVia` |
 | GET | `/api/system` | Host Docker info (CPUs, RAM, versions) |
 | GET | `/api/projects` | List projects with live status |
 | POST | `/api/projects` | `{name, gitUrl, branch?}` → clone & add |
 | GET | `/api/projects/:id` | Project + container detail |
 | DELETE | `/api/projects/:id` | compose down + remove |
-| POST | `/api/projects/:id/start\|stop\|restart` | Lifecycle |
+| POST | `/api/projects/:id/start\|stop\|restart\|rebuild\|redeploy` | Lifecycle & deploy |
 | POST | `/api/projects/:id/pull` | git pull |
 | GET | `/api/projects/:id/stats` | CPU/mem per container |
 | GET | `/api/projects/:id/logs?service=&tail=` | Recent logs |
 | GET/PUT | `/api/projects/:id/env` | Read / write `.env` |
+| GET/POST/DELETE | `/api/api-keys` | Manage your keys (session-only) |
 
 ## Security note
 
@@ -200,3 +220,7 @@ mounted). Therefore:
   apps). Restrict any route with a per-route **Allow from** allowlist, and/or gate the
   whole admin panel with `HORMUZ_PANEL_ALLOW_CIDRS` — see
   [Reverse proxy & access control](#reverse-proxy--access-control).
+- **API keys** carry their owner's operational power but are deliberately kept off
+  the identity/secret/shell plane (see [API](#api)). Treat a key like a password:
+  it can deploy and read logs/env for anything its owner can. Revoke leaked keys
+  from the panel → **API Keys** (takes effect immediately).
