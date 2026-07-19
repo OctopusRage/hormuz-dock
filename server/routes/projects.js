@@ -8,6 +8,7 @@ import * as envlib from '../env.js';
 import * as filelib from '../files.js';
 import * as hostallow from '../hostallow.js';
 import * as oplog from '../oplog.js';
+import * as auth from '../auth.js';
 import { canManage } from '../authz.js';
 
 const router = express.Router();
@@ -629,6 +630,23 @@ router.put(
     const isPrivate = req.body?.private === true || req.body?.private === 'true';
     await store.updateProject(p.id, { private: isPrivate });
     res.json({ ok: true, private: isPrivate });
+  })
+);
+
+// Transfer ownership. Creator or admin only (same as privacy). The new owner
+// must be an existing user — you can't orphan a project to a stranger.
+router.put(
+  '/:id/owner',
+  h(async (req, res) => {
+    const p = requireProject(req, res);
+    if (!p) return;
+    const owner = req.user?.role === 'admin' || (p.createdBy && p.createdBy === req.user?.username);
+    if (!owner) return res.status(403).json({ error: 'Only the current owner or an admin can transfer ownership.' });
+    const target = String(req.body?.owner || '').trim();
+    if (!target) return res.status(400).json({ error: 'owner (username) is required' });
+    if (!auth.getUserByUsername(target)) return res.status(404).json({ error: `No such user: ${target}` });
+    await store.updateProject(p.id, { createdBy: target });
+    res.json({ ok: true, createdBy: target });
   })
 );
 

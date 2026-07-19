@@ -326,7 +326,7 @@ function projectCard(p) {
           <button data-act="rebuild" ${dis}>Rebuild image</button>
           <button data-act="redeploy" ${dis}>Pull &amp; Rebuild</button>
           ${canToggle(p) ? `<div class="menu-sep"></div>
-          <button data-act="privacy">${p.private ? 'Make public' : 'Make private'}</button>` : ''}
+          <button data-act="owner">Owner &amp; visibility…</button>` : ''}
           <div class="menu-sep"></div>
           <button data-act="delete" class="danger-item" ${dis}>Delete project</button>
         </div>
@@ -487,7 +487,7 @@ document.addEventListener('click', async (e) => {
   if (act === 'branch') return openBranch(project);
   if (act === 'shell') return openShell(project);
   if (act === 'logs') return openLogs(project);
-  if (act === 'privacy') return togglePrivacy(project, 'project');
+  if (act === 'owner') return openOwnership(project, 'project');
 
   if (act === 'delete') {
     if (!confirm(`Delete "${project.name}"? This runs "compose down" and removes the cloned repo.`)) return;
@@ -652,7 +652,7 @@ function staticCard(s) {
           <button data-sact="publish" ${dis}>Set publish dir</button>
           <button data-sact="copy">Copy URL</button>
           ${canToggle(s) ? `<div class="menu-sep"></div>
-          <button data-sact="privacy">${s.private ? 'Make public' : 'Make private'}</button>` : ''}
+          <button data-sact="owner">Owner &amp; visibility…</button>` : ''}
           <div class="menu-sep"></div>
           <button data-sact="delete" class="danger-item" ${dis}>Delete site</button>
         </div>
@@ -717,22 +717,88 @@ $('#new-static-form').addEventListener('submit', async (e) => {
   }
 });
 
-// Flip an entity's privacy (creator/admin only). kind: 'project' | 'static'.
-async function togglePrivacy(entity, kind) {
+// ---------- Owner & visibility modal (creator/admin only) ----------
+let ownCtx = null;      // { kind, base, id, name, origOwner, origPrivate }
+let ownVis = 'public';  // selected visibility in the modal
+let usernamesCache = null;
+
+async function loadUsernames() {
+  if (usernamesCache) return usernamesCache;
+  usernamesCache = await api.get('/api/users/names').catch(() => []);
+  return usernamesCache;
+}
+
+async function openOwnership(entity, kind) {
   const base = kind === 'static' ? '/api/static-sites' : '/api/projects';
-  const to = !entity.private;
-  const noun = kind === 'static' ? 'static site' : 'project';
-  const verb = to ? 'private' : 'public';
-  if (!confirm(`Make ${noun} "${entity.name}" ${verb}?` + (to
-    ? '\n\nOnly you and admins will be able to manage it (start/deploy/env/shell). Its public URL, if proxied, is unaffected.'
-    : '\n\nAny logged-in user will be able to manage it again.'))) return;
-  try {
-    await api.send('PUT', `${base}/${entity.id}/private`, { private: to });
-    if (kind === 'static') await loadStatics(); else await loadProjects();
-  } catch (err) {
-    alert(err.message);
+  ownCtx = {
+    kind, base, id: entity.id, name: entity.name,
+    origOwner: entity.createdBy || '', origPrivate: !!entity.private,
+  };
+  $('#own-title').textContent = entity.name;
+  $('#own-msg').textContent = '';
+  $('#own-msg').className = 'msg';
+  setOwnVisibility(entity.private ? 'private' : 'public');
+
+  const sel = $('#own-owner');
+  const users = await loadUsernames();
+  const names = users.map((u) => u.username);
+  // Keep the current owner selectable even if it's an unknown/legacy value.
+  if (entity.createdBy && !names.includes(entity.createdBy)) names.unshift(entity.createdBy);
+  sel.innerHTML = names.map((n) => `<option value="${esc(n)}"${n === entity.createdBy ? ' selected' : ''}>${esc(n)}</option>`).join('')
+    || `<option value="">(no users)</option>`;
+  if (!entity.createdBy) sel.insertAdjacentHTML('afterbegin', '<option value="" selected>(unassigned)</option>');
+  updateOwnHint();
+  $('#ownership-modal').hidden = false;
+}
+
+function setOwnVisibility(v) {
+  ownVis = v;
+  $$('#own-visibility [data-vis]').forEach((b) => b.classList.toggle('active', b.dataset.vis === v));
+}
+function updateOwnHint() {
+  const admin = currentUser.role === 'admin';
+  const newOwner = $('#own-owner').value;
+  const hint = $('#own-owner-hint');
+  if (!admin && ownVis === 'private' && newOwner && newOwner !== currentUser.username) {
+    hint.className = 'hint warn';
+    hint.textContent = '⚠ Transferring a private item to someone else will remove your own access to it.';
+  } else {
+    hint.className = 'hint';
+    hint.textContent = 'The new owner must be an existing user.';
   }
 }
+
+$$('#own-visibility [data-vis]').forEach((b) =>
+  b.addEventListener('click', () => { setOwnVisibility(b.dataset.vis); updateOwnHint(); })
+);
+$('#own-owner').addEventListener('change', updateOwnHint);
+
+$('#own-save').addEventListener('click', async () => {
+  if (!ownCtx) return;
+  const msg = $('#own-msg');
+  const wantPrivate = ownVis === 'private';
+  const newOwner = $('#own-owner').value;
+  msg.className = 'msg';
+  msg.textContent = 'Saving…';
+  $('#own-save').disabled = true;
+  try {
+    // Privacy first, then ownership: if a non-admin owner both locks the item
+    // and hands it off, they must still be the owner when the privacy call runs.
+    if (wantPrivate !== ownCtx.origPrivate) {
+      await api.send('PUT', `${ownCtx.base}/${ownCtx.id}/private`, { private: wantPrivate });
+    }
+    if (newOwner && newOwner !== ownCtx.origOwner) {
+      await api.send('PUT', `${ownCtx.base}/${ownCtx.id}/owner`, { owner: newOwner });
+    }
+    $('#ownership-modal').hidden = true;
+    if (ownCtx.kind === 'static') await loadStatics(); else await loadProjects();
+  } catch (err) {
+    msg.className = 'msg err';
+    msg.textContent = err.message;
+  } finally {
+    $('#own-save').disabled = false;
+  }
+});
 
 // Static-site card actions.
 document.addEventListener('click', async (e) => {
@@ -749,7 +815,7 @@ document.addEventListener('click', async (e) => {
   msg.textContent = '';
 
   if (act === 'open') return window.open(site.url, '_blank', 'noopener');
-  if (act === 'privacy') return togglePrivacy(site, 'static');
+  if (act === 'owner') return openOwnership(site, 'static');
   if (act === 'files') return openFiles(site, null, '/api/static-sites');
   if (act === 'copy') {
     const url = location.origin + site.url;

@@ -424,6 +424,38 @@
       </div>
     </div>
 
+    <!-- Owner & visibility modal -->
+    <div id="ownership-modal" class="modal" hidden>
+      <div class="modal-box narrow">
+        <div class="modal-head">
+          <h3>Owner &amp; visibility — <span id="own-title"></span></h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <div class="tab-panel form-stack">
+          <div>
+            <label class="field-label">Visibility</label>
+            <div class="seg" id="own-visibility">
+              <button type="button" data-vis="public">Public</button>
+              <button type="button" data-vis="private">🔒 Private</button>
+            </div>
+            <p class="hint" style="margin:6px 0 0">
+              <b>Private</b> = only the owner &amp; admins can start / deploy / edit it, or read its
+              env / files / shell. The public proxy / <code>/_static_/</code> URL is unaffected.
+            </p>
+          </div>
+          <div>
+            <label class="field-label">Owner</label>
+            <select id="own-owner"></select>
+            <p class="hint" id="own-owner-hint" style="margin:6px 0 0"></p>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <span id="own-msg" class="msg"></span>
+          <button id="own-save" class="primary">Save</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Env editor modal -->
     <div id="env-modal" class="modal" hidden>
       <div class="modal-box">

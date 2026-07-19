@@ -7,6 +7,7 @@ import * as filelib from '../files.js';
 import * as staticlib from '../static.js';
 import { invalidate } from '../staticserve.js';
 import { STATIC_PREFIX } from '../config.js';
+import * as auth from '../auth.js';
 import { canManage } from '../authz.js';
 
 const router = express.Router();
@@ -163,6 +164,22 @@ router.put(
     if (!owner) return res.status(403).json({ error: 'Only the creator or an admin can change privacy.' });
     const isPrivate = req.body?.private === true || req.body?.private === 'true';
     await staticstore.updateSite(s.id, { private: isPrivate });
+    res.json({ ...withUrl(staticstore.getSite(s.id)) });
+  })
+);
+
+// Transfer ownership (current owner or admin; target must be an existing user).
+router.put(
+  '/:id/owner',
+  h(async (req, res) => {
+    const s = requireSite(req, res);
+    if (!s) return;
+    const owner = req.user?.role === 'admin' || (s.createdBy && s.createdBy === req.user?.username);
+    if (!owner) return res.status(403).json({ error: 'Only the current owner or an admin can transfer ownership.' });
+    const target = String(req.body?.owner || '').trim();
+    if (!target) return res.status(400).json({ error: 'owner (username) is required' });
+    if (!auth.getUserByUsername(target)) return res.status(404).json({ error: `No such user: ${target}` });
+    await staticstore.updateSite(s.id, { createdBy: target });
     res.json({ ...withUrl(staticstore.getSite(s.id)) });
   })
 );

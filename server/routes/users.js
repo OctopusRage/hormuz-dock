@@ -3,7 +3,14 @@ import * as auth from '../auth.js';
 
 const router = express.Router();
 
-// All routes here require an authenticated admin.
+// Usernames only — available to any authenticated session (used by the ownership
+// picker). Defined before the admin gate below. Parent mount already ran
+// requireAuth + requireSession, so this is logged-in-only, no API keys.
+router.get('/names', (req, res) => {
+  res.json(auth.listUsernames());
+});
+
+// Everything else here requires an authenticated admin.
 router.use(auth.requireAuth, auth.requireAdmin);
 
 // List users.

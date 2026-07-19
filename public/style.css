@@ -313,7 +313,11 @@ a.port:hover { background: rgba(76, 141, 255, 0.22); }
 
 /* Private checkbox row in the create modals. */
 .check-line { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; color: var(--text); cursor: pointer; line-height: 1.4; }
-.check-line input { margin-top: 2px; flex: 0 0 auto; }
+/* Must out-specify `.form-stack input { width:100% }` (same specificity but later
+   in the file) — else the checkbox stretches full width and squeezes the label
+   into a narrow column. */
+.form-stack .check-line input { margin-top: 2px; flex: 0 0 auto; width: auto; }
+.check-line > span { flex: 1 1 auto; min-width: 0; }
 .check-line .opt { color: var(--muted); font-weight: 400; }
 
 /* Segmented All / Mine filter. */
@@ -321,6 +325,9 @@ a.port:hover { background: rgba(76, 141, 255, 0.22); }
 .seg button { background: transparent; box-shadow: none; border: none; color: var(--muted); font-size: 12.5px; font-weight: 600; padding: 4px 12px; border-radius: 6px; }
 .seg button:hover { filter: none; transform: none; color: var(--text); }
 .seg button.active { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+.hint.warn { color: var(--amber); }
+#own-owner { width: 100%; padding: 9px 11px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--border-soft); color: var(--text); font-size: 13px; }
+#own-visibility { width: fit-content; }
 
 /* ---------- meters ---------- */
 .meters { display: flex; flex-direction: column; gap: 9px; }

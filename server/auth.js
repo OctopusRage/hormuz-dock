@@ -31,6 +31,10 @@ export function listUsers() {
     .prepare('SELECT id, username, role, created_at, created_by FROM users ORDER BY id')
     .all();
 }
+/** Just usernames — safe to expose to any authenticated user (ownership picker). */
+export function listUsernames() {
+  return db.prepare('SELECT id, username FROM users ORDER BY username').all();
+}
 export function createUser({ username, password, role, createdBy }) {
   const info = db
     .prepare(
