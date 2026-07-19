@@ -44,6 +44,11 @@ Re-run it any time to update. It prints the generated `admin` password on first 
    scripts or AI agents (Claude &amp; co.). Keys are scoped to the operational plane
    and **cannot** touch users, keys, or global secrets. Self-documenting at
    [`/docs`](#api).
+8. **Private projects & sites** — mark any project or static site **private** so
+   only its creator (and admins) can start / deploy / edit it, or read its env /
+   files / shell. Others still see the card (locked with a 🔒) but its controls are
+   disabled. The public proxy route (`/_<slug>`) and published static URL
+   (`/_static_/`) stay reachable regardless. Filter each tab to **Mine**.
 
 ## Requirements
 

@@ -45,7 +45,7 @@ export function findBySlug(slug) {
   return state.sites.find((s) => s.slug === slug) || null;
 }
 
-export async function createSite({ name, source, gitUrl, branch, publishDir, createdBy }) {
+export async function createSite({ name, source, gitUrl, branch, publishDir, createdBy, private: isPrivate }) {
   const slug = slugify(name);
   const id = crypto.randomUUID();
   const site = {
@@ -58,6 +58,7 @@ export async function createSite({ name, source, gitUrl, branch, publishDir, cre
     publishDir: publishDir || '.',
     dir: path.join(STATIC_DIR, slug),
     createdBy: createdBy || null,
+    private: !!isPrivate, // only creator + admins may manage it (public URL unaffected)
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

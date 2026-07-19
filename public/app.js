@@ -38,6 +38,29 @@ const api = {
 
 let currentUser = null;
 
+// Per-tab card filter: 'all' | 'mine'.
+let projectFilter = 'all';
+let staticFilter = 'all';
+
+// Mirrors server/authz.js — may this user manage (mutate / see the innards of)
+// this entity? Admins always; anyone for a public entity; else only the creator.
+function canManage(entity) {
+  if (!currentUser || !entity) return false;
+  if (currentUser.role === 'admin') return true;
+  if (!entity.private) return true;
+  return !!entity.createdBy && entity.createdBy === currentUser.username;
+}
+// May this user flip the entity's privacy? Creator or admin only (a public entity
+// is manageable by all, but only its owner/admin may lock it).
+function canToggle(entity) {
+  if (!currentUser || !entity) return false;
+  if (currentUser.role === 'admin') return true;
+  return !!entity.createdBy && entity.createdBy === currentUser.username;
+}
+function isMine(entity) {
+  return !!currentUser && entity.createdBy === currentUser.username;
+}
+
 function fmtBytes(n) {
   if (!n) return '0 B';
   const u = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -204,8 +227,10 @@ async function loadProjects() {
 
 function renderProjects() {
   const grid = $('#projects');
+  const shown = projectFilter === 'mine' ? projects.filter(isMine) : projects;
   $('#empty').hidden = projects.length > 0;
-  grid.innerHTML = projects.map(projectCard).join('');
+  grid.innerHTML = shown.map(projectCard).join('') ||
+    (projects.length ? `<div class="empty">None created by you yet.</div>` : '');
   const c = $('#tab-count-docker');
   if (c) c.textContent = projects.length || '';
 }
@@ -217,6 +242,18 @@ function switchMainTab(name) {
   $('#pane-static').hidden = name !== 'static';
 }
 $$('.mtab').forEach((t) => t.addEventListener('click', () => switchMainTab(t.dataset.mtab)));
+
+// Card filter (All / Mine) per tab.
+function wireFilter(groupSel, apply) {
+  $$(`${groupSel} [data-filter]`).forEach((b) =>
+    b.addEventListener('click', () => {
+      $$(`${groupSel} [data-filter]`).forEach((x) => x.classList.toggle('active', x === b));
+      apply(b.dataset.filter);
+    })
+  );
+}
+wireFilter('#docker-filter', (f) => { projectFilter = f; renderProjects(); });
+wireFilter('#static-filter', (f) => { staticFilter = f; renderStatics(); });
 
 // Provenance line: who created it, the current commit, and last deploy time.
 function projectMeta(p) {
@@ -233,9 +270,19 @@ function projectMeta(p) {
   return bits.length ? `<div class="project-meta">${bits.join('<span class="dim"> · </span>')}</div>` : '';
 }
 
+// A locked pill for private entities (title differs for people who can't manage).
+function lockBadge(entity) {
+  if (!entity.private) return '';
+  const mine = canManage(entity);
+  return `<span class="badge lock" title="${mine ? 'Private — only you and admins can manage it' : 'Private — only its creator or an admin can manage it'}">🔒 private</span>`;
+}
+
 function projectCard(p) {
+  const mine = canManage(p);
+  const dis = mine ? '' : 'disabled'; // mutation / secret-read buttons
+  const lockTitle = mine ? '' : ' title="Private — managed by its creator or an admin"';
   return `
-  <div class="project" data-id="${p.id}">
+  <div class="project${p.private ? ' is-private' : ''}${mine ? '' : ' locked'}" data-id="${p.id}">
     <div class="project-top">
       <div>
         <h3 class="project-name">${esc(p.name)}</h3>
@@ -244,7 +291,10 @@ function projectCard(p) {
         <div class="ports-line">${portLinks(p.ports)}</div>
         ${routeLinks(p.routes)}
       </div>
-      <span class="badge ${p.status}">${p.status}</span>
+      <div class="badges">
+        ${lockBadge(p)}
+        <span class="badge ${p.status}">${p.status}</span>
+      </div>
     </div>
     <div class="meters" data-meters>
       <div class="meter">
@@ -257,26 +307,28 @@ function projectCard(p) {
       </div>
     </div>
     <div class="containers" data-containers></div>
-    <div class="actions">
+    <div class="actions"${lockTitle}>
       ${p.status === 'stopped'
-        ? '<button class="sm primary" data-act="start">▶ Start</button>'
-        : '<button class="sm ghost" data-act="stop">■ Stop</button>'}
-      <button class="sm ghost" data-act="restart">Restart</button>
+        ? `<button class="sm primary" data-act="start" ${dis}>▶ Start</button>`
+        : `<button class="sm ghost" data-act="stop" ${dis}>■ Stop</button>`}
+      <button class="sm ghost" data-act="restart" ${dis}>Restart</button>
       <button class="sm ghost" data-act="logs">Logs</button>
-      <button class="sm ghost" data-act="shell">Shell</button>
+      <button class="sm ghost" data-act="shell" ${dis}>Shell</button>
       <div class="menu-wrap">
         <button class="sm ghost menu-btn" data-menu aria-label="More actions">⋯</button>
         <div class="menu" hidden>
-          <button data-act="env">Environment</button>
-          <button data-act="files">Files</button>
-          <button data-act="compose">Compose override</button>
-          <button data-act="routes">Proxy routes</button>
-          <button data-act="branch">Switch branch</button>
+          <button data-act="env" ${dis}>Environment</button>
+          <button data-act="files" ${dis}>Files</button>
+          <button data-act="compose" ${dis}>Compose override</button>
+          <button data-act="routes" ${dis}>Proxy routes</button>
+          <button data-act="branch" ${dis}>Switch branch</button>
           <div class="menu-sep"></div>
-          <button data-act="rebuild">Rebuild image</button>
-          <button data-act="redeploy">Pull &amp; Rebuild</button>
+          <button data-act="rebuild" ${dis}>Rebuild image</button>
+          <button data-act="redeploy" ${dis}>Pull &amp; Rebuild</button>
+          ${canToggle(p) ? `<div class="menu-sep"></div>
+          <button data-act="privacy">${p.private ? 'Make public' : 'Make private'}</button>` : ''}
           <div class="menu-sep"></div>
-          <button data-act="delete" class="danger-item">Delete project</button>
+          <button data-act="delete" class="danger-item" ${dis}>Delete project</button>
         </div>
       </div>
     </div>
@@ -435,6 +487,7 @@ document.addEventListener('click', async (e) => {
   if (act === 'branch') return openBranch(project);
   if (act === 'shell') return openShell(project);
   if (act === 'logs') return openLogs(project);
+  if (act === 'privacy') return togglePrivacy(project, 'project');
 
   if (act === 'delete') {
     if (!confirm(`Delete "${project.name}"? This runs "compose down" and removes the cloned repo.`)) return;
@@ -508,6 +561,7 @@ $('#new-form').addEventListener('submit', async (e) => {
     name: $('#f-name').value.trim(),
     gitUrl: $('#f-git').value.trim(),
     branch: $('#f-branch').value.trim() || undefined,
+    private: $('#f-private').checked,
   };
   btn.disabled = true;
   msg.className = 'msg';
@@ -543,8 +597,10 @@ async function loadStatics() {
 
 function renderStatics() {
   const grid = $('#statics');
+  const shown = staticFilter === 'mine' ? statics.filter(isMine) : statics;
   $('#statics-empty').hidden = statics.length > 0;
-  grid.innerHTML = statics.map(staticCard).join('');
+  grid.innerHTML = shown.map(staticCard).join('') ||
+    (statics.length ? `<div class="empty">None created by you yet.</div>` : '');
   const c = $('#tab-count-static');
   if (c) c.textContent = statics.length || '';
 }
@@ -566,8 +622,10 @@ function staticMeta(s) {
 
 function staticCard(s) {
   const pub = s.publishDir && s.publishDir !== '.' ? s.publishDir : '(root)';
+  const mine = canManage(s);
+  const dis = mine ? '' : 'disabled';
   return `
-  <div class="project static-card" data-sid="${s.id}">
+  <div class="project static-card${s.private ? ' is-private' : ''}${mine ? '' : ' locked'}" data-sid="${s.id}">
     <div class="project-top">
       <div>
         <h3 class="project-name">${esc(s.name)}</h3>
@@ -579,19 +637,24 @@ function staticCard(s) {
         </div>
         <div class="ports-line"><span class="ports-label">Publish:</span> <code>${esc(pub)}</code></div>
       </div>
-      <span class="badge running">live</span>
+      <div class="badges">
+        ${lockBadge(s)}
+        <span class="badge running">live</span>
+      </div>
     </div>
     <div class="actions">
       <button class="sm primary" data-sact="open" title="Open the site">Open ↗</button>
-      <button class="sm ghost" data-sact="files">Files</button>
-      ${s.source === 'git' ? '<button class="sm ghost" data-sact="pull">Pull latest</button>' : ''}
+      <button class="sm ghost" data-sact="files" ${dis}>Files</button>
+      ${s.source === 'git' ? `<button class="sm ghost" data-sact="pull" ${dis}>Pull latest</button>` : ''}
       <div class="menu-wrap">
         <button class="sm ghost menu-btn" data-menu aria-label="More actions">⋯</button>
         <div class="menu" hidden>
-          <button data-sact="publish">Set publish dir</button>
+          <button data-sact="publish" ${dis}>Set publish dir</button>
           <button data-sact="copy">Copy URL</button>
+          ${canToggle(s) ? `<div class="menu-sep"></div>
+          <button data-sact="privacy">${s.private ? 'Make public' : 'Make private'}</button>` : ''}
           <div class="menu-sep"></div>
-          <button data-sact="delete" class="danger-item">Delete site</button>
+          <button data-sact="delete" class="danger-item" ${dis}>Delete site</button>
         </div>
       </div>
     </div>
@@ -635,6 +698,7 @@ $('#new-static-form').addEventListener('submit', async (e) => {
     gitUrl: source === 'git' ? $('#s-git').value.trim() : undefined,
     branch: source === 'git' ? $('#s-branch').value.trim() || undefined : undefined,
     publishDir: $('#s-pub').value.trim() || undefined,
+    private: $('#s-private').checked,
   };
   btn.disabled = true;
   msg.className = 'msg';
@@ -653,6 +717,23 @@ $('#new-static-form').addEventListener('submit', async (e) => {
   }
 });
 
+// Flip an entity's privacy (creator/admin only). kind: 'project' | 'static'.
+async function togglePrivacy(entity, kind) {
+  const base = kind === 'static' ? '/api/static-sites' : '/api/projects';
+  const to = !entity.private;
+  const noun = kind === 'static' ? 'static site' : 'project';
+  const verb = to ? 'private' : 'public';
+  if (!confirm(`Make ${noun} "${entity.name}" ${verb}?` + (to
+    ? '\n\nOnly you and admins will be able to manage it (start/deploy/env/shell). Its public URL, if proxied, is unaffected.'
+    : '\n\nAny logged-in user will be able to manage it again.'))) return;
+  try {
+    await api.send('PUT', `${base}/${entity.id}/private`, { private: to });
+    if (kind === 'static') await loadStatics(); else await loadProjects();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 // Static-site card actions.
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-sact]');
@@ -668,6 +749,7 @@ document.addEventListener('click', async (e) => {
   msg.textContent = '';
 
   if (act === 'open') return window.open(site.url, '_blank', 'noopener');
+  if (act === 'privacy') return togglePrivacy(site, 'static');
   if (act === 'files') return openFiles(site, null, '/api/static-sites');
   if (act === 'copy') {
     const url = location.origin + site.url;

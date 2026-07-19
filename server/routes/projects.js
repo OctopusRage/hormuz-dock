@@ -8,8 +8,34 @@ import * as envlib from '../env.js';
 import * as filelib from '../files.js';
 import * as hostallow from '../hostallow.js';
 import * as oplog from '../oplog.js';
+import { canManage } from '../authz.js';
 
 const router = express.Router();
+
+// GET sub-paths that expose secrets (env values, file contents, compose which
+// may inline credentials). For a private project these are restricted to its
+// creator/admin, just like mutations — cards stay visible, but their innards and
+// controls are locked. Plain status/stats/logs stay open (the "visible" half).
+const SENSITIVE_GET = new Set(['env', 'files', 'file', 'compose']);
+
+// Ownership gate for a single project's sub-routes. Runs before the handlers:
+// blocks mutations and secret-exposing reads on a private project for anyone who
+// isn't its creator or an admin. Unknown ids fall through so the handler 404s.
+router.use((req, res, next) => {
+  const m = req.path.match(/^\/([^/]+)(?:\/([^/]+))?/);
+  if (!m) return next(); // e.g. "/" (list/create) — no project id
+  const p = store.getProject(m[1]);
+  if (!p) return next();
+  req.project = p; // handlers may reuse it
+  const mutating = req.method !== 'GET' && req.method !== 'HEAD';
+  const sensitiveRead = req.method === 'GET' && SENSITIVE_GET.has(m[2] || '');
+  if ((mutating || sensitiveRead) && !canManage(p, req.user)) {
+    return res.status(403).json({
+      error: 'This project is private — only its creator or an admin can manage it.',
+    });
+  }
+  next();
+});
 
 // Per-project operation lock. While a mutating operation (start/stop/restart/
 // rebuild/redeploy/branch) runs for a project, other mutating ops on the SAME
@@ -115,7 +141,13 @@ router.post(
       return res.status(409).json({ error: `A project named "${slug}" already exists` });
     }
 
-    const project = await store.createProject({ name, gitUrl, branch, createdBy: req.user?.username });
+    const project = await store.createProject({
+      name,
+      gitUrl,
+      branch,
+      createdBy: req.user?.username,
+      private: req.body?.private === true || req.body?.private === 'true',
+    });
 
     try {
       await git.clone(gitUrl, project.dir, branch);
@@ -579,6 +611,24 @@ router.put(
     else return res.status(400).json({ error: 'Provide raw (string) or pairs (array)' });
     await envlib.writeEnvRaw(p, content);
     res.json({ ok: true, raw: content, pairs: envlib.parseEnv(content) });
+  })
+);
+
+// Privacy: flip whether this project is private. Guarded by the ownership gate
+// above (mutation) — so only the creator or an admin can change it.
+router.put(
+  '/:id/private',
+  h(async (req, res) => {
+    const p = requireProject(req, res);
+    if (!p) return;
+    // Only the creator or an admin may change privacy — otherwise anyone could
+    // grab a public project and lock its owner out. (The generic gate above
+    // lets any user mutate a *public* project, so guard this one explicitly.)
+    const owner = req.user?.role === 'admin' || (p.createdBy && p.createdBy === req.user?.username);
+    if (!owner) return res.status(403).json({ error: 'Only the creator or an admin can change privacy.' });
+    const isPrivate = req.body?.private === true || req.body?.private === 'true';
+    await store.updateProject(p.id, { private: isPrivate });
+    res.json({ ok: true, private: isPrivate });
   })
 );
 

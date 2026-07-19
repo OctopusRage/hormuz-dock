@@ -7,6 +7,7 @@ import * as filelib from '../files.js';
 import * as staticlib from '../static.js';
 import { invalidate } from '../staticserve.js';
 import { STATIC_PREFIX } from '../config.js';
+import { canManage } from '../authz.js';
 
 const router = express.Router();
 
@@ -15,6 +16,28 @@ const h = (fn) => (req, res) =>
     console.error(err);
     res.status(err.status || 500).json({ error: err.message });
   });
+
+// Secret-exposing reads on a private site (file contents / listing).
+const SENSITIVE_GET = new Set(['files', 'file']);
+
+// Ownership gate: block mutations and secret-exposing reads on a private site
+// for anyone who isn't its creator or an admin. The published site itself
+// (/_static_/<slug>/) is served elsewhere and stays public regardless.
+router.use((req, res, next) => {
+  const m = req.path.match(/^\/([^/]+)(?:\/([^/]+))?/);
+  if (!m) return next();
+  const s = staticstore.getSite(m[1]);
+  if (!s) return next();
+  req.site = s;
+  const mutating = req.method !== 'GET' && req.method !== 'HEAD';
+  const sensitiveRead = req.method === 'GET' && SENSITIVE_GET.has(m[2] || '');
+  if ((mutating || sensitiveRead) && !canManage(s, req.user)) {
+    return res.status(403).json({
+      error: 'This static site is private — only its creator or an admin can manage it.',
+    });
+  }
+  next();
+});
 
 function requireSite(req, res) {
   const s = staticstore.getSite(req.params.id);
@@ -65,7 +88,15 @@ router.post(
       return res.status(409).json({ error: `A static site named "${slug}" already exists` });
     }
 
-    const site = await staticstore.createSite({ name, source, gitUrl, branch, publishDir, createdBy: req.user?.username });
+    const site = await staticstore.createSite({
+      name,
+      source,
+      gitUrl,
+      branch,
+      publishDir,
+      createdBy: req.user?.username,
+      private: req.body?.private === true || req.body?.private === 'true',
+    });
 
     if (source === 'git') {
       try {
@@ -119,6 +150,20 @@ router.put(
     await staticstore.updateSite(s.id, { publishDir });
     invalidate(s.slug);
     res.json(withUrl(staticstore.getSite(s.id)));
+  })
+);
+
+// Privacy toggle (creator/admin only, via the ownership gate above).
+router.put(
+  '/:id/private',
+  h(async (req, res) => {
+    const s = requireSite(req, res);
+    if (!s) return;
+    const owner = req.user?.role === 'admin' || (s.createdBy && s.createdBy === req.user?.username);
+    if (!owner) return res.status(403).json({ error: 'Only the creator or an admin can change privacy.' });
+    const isPrivate = req.body?.private === true || req.body?.private === 'true';
+    await staticstore.updateSite(s.id, { private: isPrivate });
+    res.json({ ...withUrl(staticstore.getSite(s.id)) });
   })
 );
 

@@ -68,6 +68,10 @@
         <div class="projects-head">
           <div class="ph-left">
             <button id="open-new" class="sm">+ New Project</button>
+            <div class="seg" id="docker-filter">
+              <button class="active" data-filter="all">All</button>
+              <button data-filter="mine">Mine</button>
+            </div>
           </div>
           <label class="auto">
             <input type="checkbox" id="auto-refresh" checked /> Auto-refresh stats
@@ -81,6 +85,10 @@
         <div class="projects-head">
           <div class="ph-left">
             <button id="open-new-static" class="sm">+ Static site</button>
+            <div class="seg" id="static-filter">
+              <button class="active" data-filter="all">All</button>
+              <button data-filter="mine">Mine</button>
+            </div>
             <span class="opt">Served directly by Hormuz — no Docker.</span>
           </div>
         </div>
@@ -112,6 +120,10 @@
             <label class="field-label">Branch <span class="opt">(optional)</span></label>
             <input id="f-branch" placeholder="defaults to the repo's default branch" />
           </div>
+          <label class="check-line">
+            <input type="checkbox" id="f-private" />
+            <span>🔒 Private <span class="opt">— only you &amp; admins can start / deploy / edit it. Its proxy URL stays public if routed.</span></span>
+          </label>
           <p class="hint" style="margin:0">
             The repo is cloned and must contain a <code>docker-compose.yml</code>.
             For plain HTML / docs use <b>+ Static site</b> instead — no Docker needed.
@@ -156,6 +168,10 @@
             <label class="field-label">Publish directory <span class="opt">(optional)</span></label>
             <input id="s-pub" placeholder="folder with index.html — blank = auto-detect / root" />
           </div>
+          <label class="check-line">
+            <input type="checkbox" id="s-private" />
+            <span>🔒 Private <span class="opt">— only you &amp; admins can manage it. The published <code>/_static_/</code> URL stays public.</span></span>
+          </label>
           <p class="hint" id="s-hint" style="margin:0">
             Creates an empty site — after that, upload a <b>zip</b> or drop HTML files in <b>Files</b>.
           </p>

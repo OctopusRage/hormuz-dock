@@ -303,6 +303,24 @@ a.port:hover { background: rgba(76, 141, 255, 0.22); }
 .badge.stopped { background: rgba(139, 151, 173, 0.16); color: var(--muted); }
 .badge.stopped::before { box-shadow: none; }
 .badge.partial { background: rgba(240, 169, 43, 0.16); color: var(--amber); }
+.badges { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
+.badge.lock { background: rgba(139, 151, 173, 0.16); color: var(--muted); letter-spacing: 0.03em; }
+.badge.lock::before { display: none; }
+/* Private project/site you can't manage: dim the card a touch and mute its rail. */
+.project.locked { border-style: dashed; }
+.project.locked .project-name { opacity: 0.92; }
+.project.is-private::before { background: linear-gradient(180deg, var(--muted), transparent); opacity: 0.5; }
+
+/* Private checkbox row in the create modals. */
+.check-line { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; color: var(--text); cursor: pointer; line-height: 1.4; }
+.check-line input { margin-top: 2px; flex: 0 0 auto; }
+.check-line .opt { color: var(--muted); font-weight: 400; }
+
+/* Segmented All / Mine filter. */
+.seg { display: inline-flex; background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button { background: transparent; box-shadow: none; border: none; color: var(--muted); font-size: 12.5px; font-weight: 600; padding: 4px 12px; border-radius: 6px; }
+.seg button:hover { filter: none; transform: none; color: var(--text); }
+.seg button.active { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 
 /* ---------- meters ---------- */
 .meters { display: flex; flex-direction: column; gap: 9px; }

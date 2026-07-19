@@ -4,6 +4,7 @@ import { URL } from 'node:url';
 import * as store from './store.js';
 import * as docker from './docker.js';
 import { logAction } from './audit.js';
+import { canManage } from './authz.js';
 
 const dockerode = new Docker();
 
@@ -41,6 +42,12 @@ export function setupTerminal() {
 
     const project = store.getProject(projectId);
     if (!project) return closeWith(ws, 'Project not found');
+
+    // A shell is full control over the container — for a private project it's
+    // creator/admin only, matching the HTTP ownership gate.
+    if (!canManage(project, ws._user)) {
+      return closeWith(ws, 'This project is private — only its creator or an admin can open a shell.');
+    }
 
     try {
       // Verify the requested container actually belongs to this project — don't
