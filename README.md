@@ -44,7 +44,12 @@ Re-run it any time to update. It prints the generated `admin` password on first 
    scripts or AI agents (Claude &amp; co.). Keys are scoped to the operational plane
    and **cannot** touch users, keys, or global secrets. Self-documenting at
    [`/docs`](#api).
-8. **Private projects & sites** — mark any project or static site **private** so
+8. **Google SSO (optional)** — admins can turn on “Sign in with Google”, restrict
+   it to specific email domains, and optionally auto-create accounts on first
+   sign-in. Password login keeps working alongside it; users link their own
+   Google account from **Password → Google account**. See
+   [Google SSO](#google-sso).
+9. **Private projects & sites** — mark any project or static site **private** so
    only its creator (and admins) can start / deploy / edit it, or read its env /
    files / shell. Others still see the card (locked with a 🔒) but its controls are
    disabled. The public proxy route (`/_<slug>`) and published static URL
@@ -208,6 +213,40 @@ AI agent). In short:
 | GET | `/api/projects/:id/logs?service=&tail=` | Recent logs |
 | GET/PUT | `/api/projects/:id/env` | Read / write `.env` |
 | GET/POST/DELETE | `/api/api-keys` | Manage your keys (session-only) |
+
+## Google SSO
+
+Off by default. An admin turns it on in the panel → **Google SSO**.
+
+1. In Google Cloud Console → *APIs & Services* → *Credentials*, create an
+   **OAuth client ID** of type *Web application*.
+2. Copy the **Authorized redirect URI** shown in the Hormuz SSO modal
+   (`https://<your-host>/api/auth/google/callback`) into that OAuth client.
+3. Paste the **Client ID** and **Client secret** into the modal, tick *Enable*,
+   and save.
+
+Options:
+
+| Setting | Effect |
+|---------|--------|
+| **Allowed email domains** | Only these domains may sign in (e.g. `qiscus.com`). Blank = any. Enforced server-side, exact-domain match. |
+| **Auto-create accounts** | On: a first-time Google user gets an account with the **user** role. Off: the account must already exist and be linked. |
+
+Notes:
+
+- **Password login always keeps working** — SSO is additive.
+- A user links Google to an existing account from **Password → Google account**.
+  Accounts are never auto-linked by email address: someone who controls a
+  matching mailbox must not be able to claim an existing account.
+- SSO can never create an **admin** — auto-created users are always `user`.
+- The client secret is encrypted at rest with the same key as Global Secret Env
+  and is never returned by the API (the settings endpoint only reports whether
+  one is stored). Those settings are admin + session-only — no API keys.
+- The flow is the OAuth authorization-code flow with a one-time `state` (CSRF /
+  replay protection). The `id_token` is validated for audience, issuer, expiry
+  and `email_verified`.
+- `/api/auth/google` sits behind the panel network gate, so with
+  `HORMUZ_PANEL_ALLOW_CIDRS` set, Google sign-in also only works from the VPN.
 
 ## Security note
 

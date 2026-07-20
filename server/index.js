@@ -15,6 +15,7 @@ import * as store from './store.js';
 import * as hostallow from './hostallow.js';
 import { staticMiddleware } from './staticserve.js';
 import * as auth from './auth.js';
+import * as sso from './sso.js';
 import * as ssh from './ssh.js';
 import * as docker from './docker.js';
 import { auditMiddleware } from './audit.js';
@@ -83,6 +84,22 @@ app.use('/api/logs', logsRouter);
 // leaked key cannot manage users, mint keys, or read the global secret store.
 app.use('/api/secure-env', auth.requireSession, secureEnvRouter);
 app.use('/api/users', auth.requireSession, usersRouter);
+
+// Google SSO configuration (admin). Identity plane → session-only. The client
+// secret is never returned; the response only reports whether one is stored.
+app.get('/api/settings/sso', auth.requireSession, auth.requireAdmin, (req, res) => {
+  res.json({
+    ...sso.getPublicConfig(),
+    suggestedRedirectUri: `${sso.baseUrl(req)}/api/auth/google/callback`,
+  });
+});
+app.put('/api/settings/sso', auth.requireSession, auth.requireAdmin, (req, res) => {
+  try {
+    res.json(sso.saveConfig(req.body || {}));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
 
 // Docker disk usage + image prune (admin) — reclaim storage. Prune is
 // destructive, so it's session-only (no API keys).

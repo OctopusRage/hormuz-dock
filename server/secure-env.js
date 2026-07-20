@@ -37,14 +37,17 @@ function masterKey() {
   return cachedKey;
 }
 
-function encrypt(plain) {
+// Exported so other features (e.g. the Google SSO client secret) encrypt at rest
+// with the SAME master key — one key, one implementation. Do not change the
+// scrypt salt or KEY_FILE above: existing ciphertext would become unreadable.
+export function encrypt(plain) {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', masterKey(), iv);
   const ct = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   return `${iv.toString('base64')}:${tag.toString('base64')}:${ct.toString('base64')}`;
 }
-function decrypt(blob) {
+export function decrypt(blob) {
   try {
     const [iv, tag, ct] = String(blob).split(':');
     const decipher = crypto.createDecipheriv('aes-256-gcm', masterKey(), Buffer.from(iv, 'base64'));

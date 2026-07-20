@@ -326,6 +326,28 @@ a.port:hover { background: rgba(76, 141, 255, 0.22); }
 .seg button:hover { filter: none; transform: none; color: var(--text); }
 .seg button.active { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 .hint.warn { color: var(--amber); }
+
+/* ---------- Google SSO ---------- */
+.or-sep { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; margin: 14px 0 12px; }
+.or-sep::before, .or-sep::after { content: ""; flex: 1; height: 1px; background: var(--border-soft); }
+.google-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 11px 14px; border-radius: 10px;
+  background: #fff; color: #3c4043; font-size: 14px; font-weight: 600;
+  text-decoration: none; border: 1px solid #dadce0; transition: box-shadow 0.15s, background 0.15s;
+}
+.google-btn:hover { background: #f7f8f8; box-shadow: 0 1px 6px rgba(0,0,0,0.28); }
+.link-row { display: flex; align-items: center; gap: 12px; padding: 12px 0 0; border-top: 1px solid var(--border-soft); }
+.link-row > div:first-child { flex: 1; min-width: 0; }
+.link-title { font-size: 13px; font-weight: 600; }
+.link-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+a.sm {
+  display: inline-flex; align-items: center; text-decoration: none;
+  padding: 7px 13px; border-radius: 9px; font-size: 12.5px; font-weight: 600;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border-soft);
+}
+a.sm:hover { border-color: var(--border); }
+#sso-redirect { flex: 1; overflow-x: auto; white-space: nowrap; background: var(--bg); border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
 #own-owner { width: 100%; padding: 9px 11px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--border-soft); color: var(--text); font-size: 13px; }
 #own-visibility { width: fit-content; }
 

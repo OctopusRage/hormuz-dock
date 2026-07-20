@@ -43,6 +43,37 @@ export function createUser({ username, password, role, createdBy }) {
     .run(username, hashPassword(password), role === 'admin' ? 'admin' : 'user', new Date().toISOString(), createdBy || null);
   return getUserById(info.lastInsertRowid);
 }
+// ---------- Google SSO links ----------
+export function getUserByGoogleSub(sub) {
+  return db.prepare('SELECT * FROM users WHERE google_sub = ?').get(sub);
+}
+/** Attach a Google identity to an account. Returns false if it's taken. */
+export function linkGoogle(userId, sub, email) {
+  const existing = getUserByGoogleSub(sub);
+  if (existing && existing.id !== userId) return false;
+  db.prepare('UPDATE users SET google_sub = ?, email = COALESCE(?, email) WHERE id = ?').run(sub, email || null, userId);
+  return true;
+}
+export function unlinkGoogle(userId) {
+  db.prepare('UPDATE users SET google_sub = NULL WHERE id = ?').run(userId);
+}
+/**
+ * Create an account for a first-time Google sign-in. Always role 'user' — SSO
+ * must never be able to mint an admin. The password is random and unusable:
+ * these accounts sign in through Google (an admin can reset it to grant
+ * password login).
+ */
+export function createSsoUser({ username, email, googleSub }) {
+  const user = createUser({
+    username,
+    password: crypto.randomBytes(32).toString('hex'),
+    role: 'user',
+    createdBy: 'google-sso',
+  });
+  db.prepare('UPDATE users SET google_sub = ?, email = ? WHERE id = ?').run(googleSub, email || null, user.id);
+  return getUserById(user.id);
+}
+
 export function deleteUser(id) {
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
   return db.prepare('DELETE FROM users WHERE id = ?').run(id).changes > 0;

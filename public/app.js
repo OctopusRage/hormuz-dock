@@ -1745,6 +1745,21 @@ function showLogin() {
   $('#login-msg').textContent = '';
   $('#login-user').focus();
   if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+  // Offer "Sign in with Google" only when an admin has configured it.
+  api.get('/api/auth/sso-status')
+    .then((s) => { $('#login-sso').hidden = !s.google; })
+    .catch(() => { $('#login-sso').hidden = true; });
+}
+
+// Surface the outcome of a Google redirect (?sso_error / ?sso_linked), then
+// scrub it from the URL so a refresh doesn't replay the message.
+function consumeSsoResult() {
+  const q = new URLSearchParams(location.search);
+  const err = q.get('sso_error');
+  const linked = q.get('sso_linked');
+  if (!err && !linked) return;
+  history.replaceState({}, '', location.pathname);
+  return { err, linked };
 }
 function hideLogin() {
   $('#login').hidden = true;
@@ -1780,6 +1795,7 @@ function renderUserbar() {
     ${admin ? '<button class="sm ghost" id="btn-users">Users</button>' : ''}
     ${admin ? '<button class="sm ghost" id="btn-sshkey">SSH key</button>' : ''}
     ${admin ? '<button class="sm ghost" id="btn-secure">Global Secret Env</button>' : ''}
+    ${admin ? '<button class="sm ghost" id="btn-sso">Google SSO</button>' : ''}
     ${admin ? '<button class="sm ghost" id="btn-prune">Prune</button>' : ''}
     <button class="sm ghost" id="btn-keys">API Keys</button>
     <a class="sm ghost" id="btn-docs" href="/docs" target="_blank" rel="noopener">API Docs</a>
@@ -1790,6 +1806,7 @@ function renderUserbar() {
   if (admin) $('#btn-sshkey').addEventListener('click', openSshKey);
   if (admin) $('#btn-secure').addEventListener('click', openSecure);
   if (admin) $('#btn-prune').addEventListener('click', openPrune);
+  if (admin) $('#btn-sso').addEventListener('click', openSso);
   $('#btn-keys').addEventListener('click', openApiKeys);
   $('#btn-audit').addEventListener('click', openAudit);
   $('#btn-pass').addEventListener('click', changePassword);
@@ -1802,6 +1819,88 @@ async function logout() {
   showLogin();
 }
 
+// ---------- Google SSO settings (admin) ----------
+async function openSso() {
+  const msg = $('#sso-msg');
+  msg.className = 'msg';
+  msg.textContent = '';
+  $('#sso-client-secret').value = '';
+  try {
+    const c = await api.get('/api/settings/sso');
+    $('#sso-enabled').checked = !!c.enabled;
+    $('#sso-client-id').value = c.clientId || '';
+    $('#sso-domains').value = (c.allowedDomains || []).join(', ');
+    $('#sso-autoregister').checked = !!c.autoRegister;
+    $('#sso-redirect').textContent = c.redirectUri || c.suggestedRedirectUri || '';
+    $('#sso-secret-state').textContent = c.hasSecret
+      ? 'A secret is stored. Leave blank to keep it.'
+      : 'No secret stored yet — required to enable.';
+  } catch (e) {
+    msg.className = 'msg err';
+    msg.textContent = e.message;
+  }
+  $('#sso-modal').hidden = false;
+}
+
+$('#sso-save').addEventListener('click', async () => {
+  const msg = $('#sso-msg');
+  const body = {
+    enabled: $('#sso-enabled').checked,
+    clientId: $('#sso-client-id').value.trim(),
+    allowedDomains: $('#sso-domains').value,
+    autoRegister: $('#sso-autoregister').checked,
+  };
+  const secret = $('#sso-client-secret').value.trim();
+  if (secret) body.clientSecret = secret; // blank means "keep the stored one"
+  msg.className = 'msg';
+  msg.textContent = 'Saving…';
+  $('#sso-save').disabled = true;
+  try {
+    const saved = await api.send('PUT', '/api/settings/sso', body);
+    $('#sso-client-secret').value = '';
+    $('#sso-secret-state').textContent = saved.hasSecret
+      ? 'A secret is stored. Leave blank to keep it.'
+      : 'No secret stored yet — required to enable.';
+    msg.className = 'msg ok';
+    msg.textContent = saved.enabled && !saved.hasSecret
+      ? 'Saved — but a client secret is still required before Google sign-in works.'
+      : 'Saved.';
+  } catch (e) {
+    msg.className = 'msg err';
+    msg.textContent = e.message;
+  } finally {
+    $('#sso-save').disabled = false;
+  }
+});
+$('#sso-redirect-copy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('#sso-redirect').textContent); $('#sso-redirect-copy').textContent = 'Copied ✓'; }
+  catch { $('#sso-redirect-copy').textContent = 'Copy failed'; }
+  setTimeout(() => { $('#sso-redirect-copy').textContent = 'Copy'; }, 1500);
+});
+
+// ---------- Account: link / unlink Google ----------
+async function refreshGoogleLink() {
+  const wrap = $('#pw-google');
+  let enabled = false;
+  try { enabled = (await api.get('/api/auth/sso-status')).google; } catch { /* ignore */ }
+  wrap.hidden = !enabled;
+  if (!enabled) return;
+  const linked = !!currentUser.googleLinked;
+  $('#pw-google-sub').textContent = linked
+    ? `Linked${currentUser.email ? ' — ' + currentUser.email : ''}`
+    : 'Not linked — link it to sign in with Google.';
+  $('#pw-google-link').hidden = linked;
+  $('#pw-google-unlink').hidden = !linked;
+}
+$('#pw-google-unlink').addEventListener('click', async () => {
+  if (!confirm('Unlink your Google account? You will need your username and password to sign in.')) return;
+  try {
+    await api.send('POST', '/api/auth/google/unlink');
+    currentUser = await api.get('/api/auth/me');
+    refreshGoogleLink();
+  } catch (e) { alert(e.message); }
+});
+
 function changePassword() {
   $('#pw-current').value = '';
   $('#pw-new').value = '';
@@ -1809,6 +1908,7 @@ function changePassword() {
   const msg = $('#pw-msg');
   msg.className = 'msg';
   msg.textContent = '';
+  refreshGoogleLink();
   $('#password-modal').hidden = false;
   $('#pw-current').focus();
 }
@@ -2135,12 +2235,23 @@ async function initApp() {
 }
 
 async function boot() {
+  const ssoResult = consumeSsoResult();
   try {
     currentUser = await api.get('/api/auth/me');
     hideLogin();
     await initApp();
+    if (ssoResult?.linked) {
+      const b = $('#userbar');
+      b?.insertAdjacentHTML('afterbegin', '<span class="msg ok" style="margin:0 10px 0 0">Google account linked ✓</span>');
+      setTimeout(() => b?.querySelector('.msg.ok')?.remove(), 4000);
+    }
   } catch {
     showLogin();
+    if (ssoResult?.err) {
+      const msg = $('#login-msg');
+      msg.className = 'msg err';
+      msg.textContent = ssoResult.err;
+    }
   }
 }
 boot();

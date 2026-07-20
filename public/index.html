@@ -20,6 +20,13 @@
         <input id="login-user" placeholder="Username" autocomplete="username" required />
         <input id="login-pass" type="password" placeholder="Password" autocomplete="current-password" required />
         <button type="submit" id="login-btn">Sign in</button>
+        <div id="login-sso" hidden>
+          <div class="or-sep"><span>or</span></div>
+          <a class="google-btn" href="/api/auth/google">
+            <svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+            Sign in with Google
+          </a>
+        </div>
         <div id="login-msg" class="msg"></div>
       </form>
     </div>
@@ -503,9 +510,68 @@
             <input id="pw-confirm" type="password" autocomplete="new-password" placeholder="Repeat new password" />
           </div>
         </form>
+        <div class="tab-panel" id="pw-google" style="padding-top:0" hidden>
+          <div class="link-row">
+            <div>
+              <div class="link-title">Google account</div>
+              <div class="link-sub" id="pw-google-sub">Not linked</div>
+            </div>
+            <a class="sm" id="pw-google-link" href="/api/auth/google?mode=link">Link Google</a>
+            <button class="sm ghost" id="pw-google-unlink" hidden>Unlink</button>
+          </div>
+        </div>
         <div class="modal-foot">
           <span id="pw-msg" class="msg"></span>
           <button id="pw-save" class="primary">Update password</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Google SSO settings (admin) -->
+    <div id="sso-modal" class="modal" hidden>
+      <div class="modal-box narrow">
+        <div class="modal-head">
+          <h3>Google SSO</h3>
+          <button class="close" data-close>&times;</button>
+        </div>
+        <div class="tab-panel form-stack">
+          <label class="check-line">
+            <input type="checkbox" id="sso-enabled" />
+            <span>Enable “Sign in with Google” <span class="opt">— shows the button on the login page.</span></span>
+          </label>
+          <div>
+            <label class="field-label">Client ID</label>
+            <input id="sso-client-id" placeholder="xxxxx.apps.googleusercontent.com" />
+          </div>
+          <div>
+            <label class="field-label">Client secret</label>
+            <input id="sso-client-secret" type="password" autocomplete="new-password" placeholder="paste to set / replace" />
+            <p class="hint" id="sso-secret-state" style="margin:6px 0 0"></p>
+          </div>
+          <div>
+            <label class="field-label">Allowed email domains <span class="opt">(optional)</span></label>
+            <input id="sso-domains" placeholder="qiscus.com, qiscus.io — blank = any domain" />
+            <p class="hint" style="margin:6px 0 0">Only these email domains may sign in. Enforced server-side.</p>
+          </div>
+          <label class="check-line">
+            <input type="checkbox" id="sso-autoregister" />
+            <span>Auto-create accounts on first sign-in <span class="opt">— new users get the <b>user</b> role (never admin). Off = the account must already exist and be linked.</span></span>
+          </label>
+          <div>
+            <label class="field-label">Authorized redirect URI <span class="opt">(paste into Google Console)</span></label>
+            <div class="key-reveal-row">
+              <code id="sso-redirect"></code>
+              <button class="sm" id="sso-redirect-copy" type="button">Copy</button>
+            </div>
+            <p class="hint" style="margin:6px 0 0">
+              In Google Cloud Console → APIs &amp; Services → Credentials → OAuth client (Web application),
+              add this exact URI under <b>Authorized redirect URIs</b>.
+            </p>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <span id="sso-msg" class="msg"></span>
+          <button id="sso-save" class="primary">Save</button>
         </div>
       </div>
     </div>

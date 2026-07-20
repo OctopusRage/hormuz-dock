@@ -49,9 +49,26 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+  );
+
   CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
   CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
   CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(hash);
 `);
+
+// Google SSO columns, added in place for existing installs (SQLite has no
+// "ADD COLUMN IF NOT EXISTS", so check the table first).
+{
+  const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!cols.includes('google_sub')) db.exec('ALTER TABLE users ADD COLUMN google_sub TEXT');
+  if (!cols.includes('email')) db.exec('ALTER TABLE users ADD COLUMN email TEXT');
+  // One Google identity may back at most one account.
+  db.exec(
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL'
+  );
+}
