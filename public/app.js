@@ -1954,6 +1954,12 @@ async function loadUsers() {
     .map(
       (u) => `<div class="user-row">
         <span class="u-name">${esc(u.username)} <span class="role ${esc(u.role)}">${esc(u.role)}</span></span>
+        <span class="u-google ${u.google_linked ? 'linked' : 'unlinked'}"
+              title="${u.google_linked
+                ? 'Google account linked' + (u.email ? ' — ' + esc(u.email) : '')
+                : 'No Google account linked — this user signs in with a password'}">
+          ${u.google_linked ? `<b>G</b> ${esc(u.email || 'linked')}` : '<b>G</b> not linked'}
+        </span>
         <span class="u-meta">${u.created_by ? 'by ' + esc(u.created_by) : ''}</span>
         <button class="sm ghost" data-reset="${u.id}" data-name="${esc(u.username)}">Reset pw</button>
         ${u.id === currentUser.id ? '' : `<button class="sm danger" data-deluser="${u.id}" data-name="${esc(u.username)}">Delete</button>`}

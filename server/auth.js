@@ -46,8 +46,13 @@ export function getUserById(id) {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
 }
 export function listUsers() {
+  // google_linked (not the raw google_sub) is enough for the admin list.
   return db
-    .prepare('SELECT id, username, role, created_at, created_by FROM users ORDER BY id')
+    .prepare(
+      `SELECT id, username, role, created_at, created_by, email,
+              CASE WHEN google_sub IS NOT NULL THEN 1 ELSE 0 END AS google_linked
+       FROM users ORDER BY id`
+    )
     .all();
 }
 /** Just usernames — safe to expose to any authenticated user (ownership picker). */

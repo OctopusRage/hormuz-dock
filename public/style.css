@@ -412,6 +412,15 @@ a.sm:hover { border-color: var(--border); }
 .user-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 9px; }
 .user-row .u-name { flex: 1; font-size: 14px; }
 .user-row .u-meta { color: var(--muted); font-size: 12px; }
+/* Google link status — the "G" reads as Google without pulling in an icon font. */
+.u-google {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0;
+  font-size: 11.5px; padding: 3px 9px; border-radius: 20px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+}
+.u-google b { font-weight: 800; font-size: 12px; line-height: 1; }
+.u-google.linked { background: rgba(53, 194, 106, 0.14); color: var(--green); }
+.u-google.unlinked { background: rgba(139, 151, 173, 0.13); color: var(--muted); }
 h4.section { margin: 18px 0 10px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .cu-grid { display: grid; grid-template-columns: 1fr 130px; gap: 12px; }
 .cu-grid input, .cu-grid select { width: 100%; }
