@@ -35,6 +35,13 @@ if (seeded) {
   console.log('=========================================================');
 }
 
+// Clear expired logins and apply the current session lifetime to sessions that
+// were issued under a longer one.
+{
+  const s = auth.enforceSessionTtl();
+  console.log(`Sessions expire after ${s.days} day(s) (removed ${s.expired} expired, shortened ${s.capped})`);
+}
+
 // Undo any .env left holding real secrets by a crash during a previous `up`.
 docker.recoverResolvedEnv(store.listProjects());
 

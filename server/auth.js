@@ -1,8 +1,27 @@
 import crypto from 'node:crypto';
 import { db } from './db.js';
 
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+// How long a login lasts before you must sign in again. Override with
+// HORMUZ_SESSION_DAYS (accepts fractions, e.g. 0.5 for 12 hours).
+const SESSION_DAYS = Number(process.env.HORMUZ_SESSION_DAYS) > 0
+  ? Number(process.env.HORMUZ_SESSION_DAYS)
+  : 3;
+const SESSION_TTL_MS = SESSION_DAYS * 24 * 60 * 60 * 1000;
 const COOKIE = 'apphub_session';
+
+/**
+ * Apply the current TTL to sessions that were issued under a longer one, and
+ * drop anything already expired. Runs at boot, so shortening the TTL takes
+ * effect for everyone immediately instead of only for new logins. Nobody is
+ * signed out early: sessions are capped at now + TTL, never below it.
+ */
+export function enforceSessionTtl() {
+  const now = new Date();
+  const cap = new Date(now.getTime() + SESSION_TTL_MS).toISOString();
+  const expired = db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now.toISOString()).changes;
+  const capped = db.prepare('UPDATE sessions SET expires_at = ? WHERE expires_at > ?').run(cap, cap).changes;
+  return { expired, capped, days: SESSION_DAYS };
+}
 
 // ---------- password hashing (scrypt, no external deps) ----------
 export function hashPassword(password) {

@@ -248,6 +248,20 @@ Notes:
 - `/api/auth/google` sits behind the panel network gate, so with
   `HORMUZ_PANEL_ALLOW_CIDRS` set, Google sign-in also only works from the VPN.
 
+## Sessions
+
+A login lasts **3 days**, then you sign in again. Change it with
+`HORMUZ_SESSION_DAYS` in the env file (fractions allowed — `0.5` = 12 hours):
+
+```sh
+HORMUZ_SESSION_DAYS=3
+```
+
+Shortening it applies to everyone on the next restart: sessions issued under a
+longer lifetime are capped to the new one, and expired sessions are purged. Nobody
+is signed out early — sessions are capped at *now + lifetime*, never below it.
+Changing your password still invalidates all of your existing sessions.
+
 ## Security note
 
 Hormuz Dock has username/password auth with **admin** and **user** roles, cookie
