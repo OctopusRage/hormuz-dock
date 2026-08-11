@@ -254,20 +254,25 @@
     <code>docker save</code> + upload into <code>docker load</code> on the host, then restarts the project.
   </p>
 
-  <p><strong>Install &amp; connect (Claude Code):</strong></p>
-  <pre><code><span class="tok-m">cd</span> mcp &amp;&amp; npm install
-<span class="tok-m">claude</span> mcp add hormuz \
-  -e HORMUZ_URL=$BASE \
-  -e HORMUZ_API_KEY=hormuz_XXXXXXXXXXXX \
-  -- node /absolute/path/to/apphub/mcp/server.js</code></pre>
+  <p><strong>1. Grab the server</strong> — straight from this instance (no repo checkout):</p>
+  <pre><code><span class="tok-m">mkdir</span> hormuz-mcp &amp;&amp; <span class="tok-m">cd</span> hormuz-mcp
+<span class="tok-m">curl</span> -O <span class="hz-origin">https://hormuz.qiscus.io</span>/mcp/server.js
+<span class="tok-m">curl</span> -O <span class="hz-origin">https://hormuz.qiscus.io</span>/mcp/package.json
+<span class="tok-m">npm</span> install</code></pre>
 
-  <p><strong>Or any MCP client</strong> (Claude Desktop, etc.):</p>
+  <p><strong>2. Connect (Claude Code)</strong> — run from that <code>hormuz-mcp</code> dir:</p>
+  <pre><code><span class="tok-m">claude</span> mcp add hormuz \
+  -e HORMUZ_URL=<span class="hz-origin">https://hormuz.qiscus.io</span> \
+  -e HORMUZ_API_KEY=hormuz_XXXXXXXXXXXX \
+  -- node "$PWD/server.js"</code></pre>
+
+  <p><strong>Or any MCP client</strong> (Claude Desktop, etc.) — point <code>args</code> at the <code>server.js</code> you just downloaded:</p>
   <pre><code>{
   "mcpServers": {
     "hormuz": {
       "command": "node",
-      "args": ["/absolute/path/to/apphub/mcp/server.js"],
-      "env": { "HORMUZ_URL": "https://hormuz.qiscus.io", "HORMUZ_API_KEY": "hormuz_XXXX" }
+      "args": ["/absolute/path/to/hormuz-mcp/server.js"],
+      "env": { "HORMUZ_URL": "<span class="hz-origin">https://hormuz.qiscus.io</span>", "HORMUZ_API_KEY": "hormuz_XXXX" }
     }
   }
 }</code></pre>
@@ -290,5 +295,9 @@
     point it here and hand it a scoped API key.
   </footer>
 </div>
+<script>
+  // Fill URLs with THIS instance's origin so the MCP setup is copy-paste-and-run.
+  for (const el of document.querySelectorAll('.hz-origin')) el.textContent = location.origin;
+</script>
 </body>
 </html>

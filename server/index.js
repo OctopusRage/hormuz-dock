@@ -162,6 +162,15 @@ app.get('/api/system', async (req, res) => {
 // a valid key. (Still behind the panel network gate above, if one is set.)
 app.get('/docs', (req, res) => res.sendFile(path.join(ROOT, 'public', 'docs.html')));
 
+// Serve the MCP server's own source straight from this instance, so the /docs
+// setup is copy-paste-and-run against live Hormuz (no repo checkout needed).
+// Whitelisted files only — the server holds no secrets (config is via env).
+app.get('/mcp/:file', (req, res) => {
+  const allowed = new Set(['server.js', 'package.json', 'README.md']);
+  if (!allowed.has(req.params.file)) return res.status(404).type('txt').send('Not found');
+  res.sendFile(path.join(ROOT, 'mcp', req.params.file));
+});
+
 // Static frontend
 app.use(express.static(path.join(ROOT, 'public')));
 
