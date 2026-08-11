@@ -4,6 +4,7 @@ import path from 'node:path';
 import * as store from '../store.js';
 import * as git from '../git.js';
 import * as docker from '../docker.js';
+import * as images from '../images.js';
 import * as envlib from '../env.js';
 import * as filelib from '../files.js';
 import * as hostallow from '../hostallow.js';
@@ -514,6 +515,79 @@ router.put(
       return res.status(400).json({ error: 'Invalid compose config:\n' + check.error });
     }
     res.json({ ok: true, overrideExists: true });
+  })
+);
+
+// Images: list pre-built images uploaded for this project, annotated with
+// whether the tag is still present in the host's local image store (and its
+// size). Not secret (just tags) → left readable like status/logs.
+router.get(
+  '/:id/images',
+  h(async (req, res) => {
+    const p = requireProject(req, res);
+    if (!p) return;
+    let local = [];
+    try {
+      local = await images.listImages();
+    } catch {
+      /* docker down — report records without live annotation */
+    }
+    const byTag = new Map(local.map((i) => [i.tag, i]));
+    const list = (p.images || []).map((i) => ({
+      ...i,
+      present: byTag.has(i.tag),
+      size: byTag.get(i.tag)?.size || null,
+      id: byTag.get(i.tag)?.id || null,
+    }));
+    res.json({ images: list });
+  })
+);
+
+// Images: upload a `docker save` tarball (raw request body, optionally
+// gzip/xz-compressed) and stream it into `docker load` on the host daemon.
+// Bypasses the JSON body parser (Content-Type is not application/json), so the
+// request stays a readable stream and large images never buffer in memory. The
+// POST method makes the ownership gate above enforce manage rights.
+router.post('/:id/image', (req, res) => {
+  const p = requireProject(req, res);
+  if (!p) return;
+  images
+    .loadImageFromStream(req)
+    .then(async (result) => {
+      if (result.code !== 0) {
+        return res
+          .status(400)
+          .json({ error: result.output.trim() || 'docker load failed', output: result.output });
+      }
+      const now = new Date().toISOString();
+      const byTag = new Map((p.images || []).map((i) => [i.tag, i]));
+      for (const tag of result.loaded) {
+        byTag.set(tag, { tag, loadedAt: now, loadedBy: req.user?.username || null });
+      }
+      await store.updateProject(p.id, { images: [...byTag.values()] });
+      res.json({ ok: true, loaded: result.loaded, output: result.output });
+    })
+    .catch((err) => {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    });
+});
+
+// Images: remove an uploaded image (docker rmi) and drop its record. A
+// still-in-use image can't be removed → 409 with docker's reason.
+router.delete(
+  '/:id/image',
+  h(async (req, res) => {
+    const p = requireProject(req, res);
+    if (!p) return;
+    const tag = String(req.query.tag || '').trim();
+    if (!tag) return res.status(400).json({ error: 'tag is required' });
+    const r = await images.removeImage(tag);
+    if (!r.ok && !r.notFound) {
+      return res.status(409).json({ error: r.output || 'docker rmi failed' });
+    }
+    await store.updateProject(p.id, { images: (p.images || []).filter((i) => i.tag !== tag) });
+    res.json({ ok: true, output: r.output });
   })
 );
 

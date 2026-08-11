@@ -70,6 +70,7 @@ export async function createProject({ name, gitUrl, branch, type, source, publis
     dir: path.join(REPOS_DIR, slug),
     composeFile: null,
     routes: [],
+    images: [], // pre-built images uploaded + `docker load`ed for this project
     status: 'stopped',
     createdBy: createdBy || null,
     private: !!isPrivate, // only creator + admins may manage it

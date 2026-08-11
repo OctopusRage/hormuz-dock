@@ -325,6 +325,7 @@ function projectCard(p) {
           <div class="menu-sep"></div>
           <button data-act="rebuild" ${dis}>Rebuild image</button>
           <button data-act="redeploy" ${dis}>Pull &amp; Rebuild</button>
+          <button data-act="image" ${dis}>Upload image…</button>
           ${canToggle(p) ? `<div class="menu-sep"></div>
           <button data-act="owner">Owner &amp; visibility…</button>` : ''}
           <div class="menu-sep"></div>
@@ -483,6 +484,7 @@ document.addEventListener('click', async (e) => {
   if (act === 'env') return openEnv(project);
   if (act === 'files') return openFiles(project);
   if (act === 'compose') return openCompose(project);
+  if (act === 'image') return openImage(project);
   if (act === 'routes') return openRoutes(project);
   if (act === 'branch') return openBranch(project);
   if (act === 'shell') return openShell(project);
@@ -1394,6 +1396,135 @@ $('#compose-save').addEventListener('click', async () => {
   } catch (e) {
     msg.className = 'msg err';
     msg.textContent = e.message;
+  }
+});
+
+// ---------- Upload pre-built image modal ----------
+let imageProject = null;
+
+async function openImage(project) {
+  imageProject = project;
+  $('#image-title').textContent = project.name;
+  $('#image-msg').className = 'msg';
+  $('#image-msg').textContent = '';
+  $('#image-output').hidden = true;
+  $('#image-output').textContent = '';
+  $('#image-progress').hidden = true;
+  $('#image-modal').hidden = false;
+  await loadImageList();
+}
+
+async function loadImageList() {
+  const box = $('#image-list');
+  box.innerHTML = '<div class="hint">Loading…</div>';
+  try {
+    const d = await api.get(`/api/projects/${imageProject.id}/images`);
+    renderImageList(d.images || []);
+  } catch (e) {
+    box.innerHTML = `<div class="msg err">${esc(e.message)}</div>`;
+  }
+}
+
+function renderImageList(list) {
+  const box = $('#image-list');
+  if (!list.length) {
+    box.innerHTML = '<div class="hint">No images uploaded yet.</div>';
+    return;
+  }
+  box.innerHTML = list
+    .map((i) => {
+      let when = '';
+      try { when = i.loadedAt ? new Date(i.loadedAt).toLocaleString() : ''; } catch { /* ignore */ }
+      const badge = i.present
+        ? `<span class="badge ok">present${i.size ? ' · ' + esc(i.size) : ''}</span>`
+        : '<span class="badge warn">missing</span>';
+      const meta = `${i.loadedBy ? 'by ' + esc(i.loadedBy) + ' · ' : ''}${esc(when)}`;
+      return `<div class="image-row">
+        <div class="image-tag"><code>${esc(i.tag)}</code> ${badge}</div>
+        <div class="image-meta">${meta}</div>
+        <button class="sm ghost" data-image-rm="${esc(i.tag)}">Remove</button>
+      </div>`;
+    })
+    .join('');
+}
+
+$('#image-upload-btn').addEventListener('click', () => $('#image-upload').click());
+$('#image-upload').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  e.target.value = ''; // allow re-selecting the same file
+  if (file) uploadImage(file);
+});
+
+// Stream the tarball with XHR so we get an upload progress bar (fetch can't
+// report request-body progress). Same-origin → the session cookie authenticates.
+function uploadImage(file) {
+  const msg = $('#image-msg');
+  const prog = $('#image-progress');
+  const bar = $('#image-bar');
+  const label = $('#image-progress-label');
+  const output = $('#image-output');
+  msg.className = 'msg';
+  msg.textContent = '';
+  output.hidden = true;
+  output.textContent = '';
+  prog.hidden = false;
+  bar.style.width = '0';
+  label.textContent = `Uploading ${file.name}…`;
+  $('#image-upload-btn').disabled = true;
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `/api/projects/${imageProject.id}/image`);
+  xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+  xhr.upload.addEventListener('progress', (ev) => {
+    if (!ev.lengthComputable) return;
+    const pct = Math.round((ev.loaded / ev.total) * 100);
+    bar.style.width = pct + '%';
+    label.textContent = pct < 100 ? `Uploading ${file.name}… ${pct}%` : 'Loading image on host…';
+  });
+  xhr.addEventListener('load', async () => {
+    $('#image-upload-btn').disabled = false;
+    prog.hidden = true;
+    let data = {};
+    try { data = JSON.parse(xhr.responseText); } catch { /* ignore */ }
+    if (xhr.status >= 200 && xhr.status < 300) {
+      msg.className = 'msg ok';
+      msg.textContent = data.loaded?.length ? `Loaded: ${data.loaded.join(', ')}` : 'Image loaded.';
+      if (data.output) { output.hidden = false; output.textContent = data.output.trim(); }
+      await loadImageList();
+    } else {
+      if (xhr.status === 401) return handle401(xhr.status);
+      msg.className = 'msg err';
+      msg.textContent = data.error || `Upload failed (${xhr.status})`;
+      if (data.output) { output.hidden = false; output.textContent = data.output.trim(); }
+    }
+  });
+  xhr.addEventListener('error', () => {
+    $('#image-upload-btn').disabled = false;
+    prog.hidden = true;
+    msg.className = 'msg err';
+    msg.textContent = 'Upload failed (network error).';
+  });
+  xhr.send(file);
+}
+
+$('#image-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-image-rm]');
+  if (!btn) return;
+  const tag = btn.dataset.imageRm;
+  if (!confirm(`Remove image "${tag}"? This runs "docker rmi" on the host.`)) return;
+  btn.disabled = true;
+  const msg = $('#image-msg');
+  msg.className = 'msg';
+  msg.textContent = `Removing ${tag}…`;
+  try {
+    await api.send('DELETE', `/api/projects/${imageProject.id}/image?tag=${encodeURIComponent(tag)}`);
+    msg.className = 'msg ok';
+    msg.textContent = `Removed ${tag}.`;
+    await loadImageList();
+  } catch (err) {
+    msg.className = 'msg err';
+    msg.textContent = err.message;
+    btn.disabled = false;
   }
 });
 

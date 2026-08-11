@@ -49,6 +49,9 @@ function describe(req) {
     };
     if (!id && req.method === 'POST') return { action: 'Create project', kind: 'project-create' };
     if (id && !sub && req.method === 'DELETE') return { action: 'Delete project', kind: 'project', id };
+    if (id && sub === 'image') {
+      return { action: req.method === 'DELETE' ? 'Remove image' : 'Upload image', kind: 'project', id };
+    }
     if (id && sub) return { action: labels[sub] || `${req.method} ${sub}`, kind: 'project', id };
     return { action: `${req.method} project`, kind: 'project', id };
   }

@@ -638,6 +638,40 @@
       </div>
     </div>
 
+    <!-- Upload pre-built image modal -->
+    <div id="image-modal" class="modal" hidden>
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3>Upload image — <span id="image-title"></span></h3>
+          <div class="shell-controls">
+            <button id="image-upload-btn" class="sm ghost">Upload .tar…</button>
+            <input id="image-upload" type="file" accept=".tar,.tar.gz,.tgz,.tar.xz,.gz,.xz" hidden />
+            <button class="close" data-close>&times;</button>
+          </div>
+        </div>
+        <p class="hint" style="margin-top:0">
+          Build the image locally and save it to a tarball, then upload it here —
+          Hormuz runs <code>docker load</code> on the host, no registry needed:
+        </p>
+        <pre class="code-hint">docker build -t myapp:1.0 .
+docker save myapp:1.0 | gzip &gt; myapp.tar.gz</pre>
+        <p class="hint">
+          Then reference the tag in your compose (base file or override) as
+          <code>image: myapp:1.0</code> with <b>no</b> <code>build:</code> — Compose uses the
+          loaded image and won't pull it. Start/Restart to apply.
+        </p>
+        <div id="image-progress" class="image-progress" hidden>
+          <div class="bar"><span id="image-bar" style="width:0"></span></div>
+          <span id="image-progress-label">Uploading…</span>
+        </div>
+        <div id="image-list" class="image-list"></div>
+        <pre id="image-output" class="oplog-body" hidden></pre>
+        <div class="modal-foot">
+          <span id="image-msg" class="msg"></span>
+        </div>
+      </div>
+    </div>
+
     <!-- Routes (reverse proxy) modal -->
     <div id="routes-modal" class="modal" hidden>
       <div class="modal-box">

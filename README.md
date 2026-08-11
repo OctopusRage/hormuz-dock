@@ -54,6 +54,11 @@ Re-run it any time to update. It prints the generated `admin` password on first 
    files / shell. Others still see the card (locked with a 🔒) but its controls are
    disabled. The public proxy route (`/_<slug>`) and published static URL
    (`/_static_/`) stay reachable regardless. Filter each tab to **Mine**.
+10. **Upload pre-built images** — built the image elsewhere (locally, CI, an ECR
+    pull)? Skip building on the server: `docker save myapp:1.0 | gzip > img.tar.gz`,
+    then **Upload image** on the project card streams it into `docker load` on the
+    host. Reference the tag in your compose (`image: myapp:1.0`, no `build:`) and
+    Compose uses the loaded image without pulling.
 
 ## Requirements
 
