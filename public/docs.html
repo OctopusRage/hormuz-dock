@@ -182,6 +182,9 @@
     <tr><td><span class="m get">GET</span></td><td><code>/api/projects/:id/op-stream</code></td><td>Live deploy log (SSE)</td></tr>
     <tr><td><span class="m get">GET</span> <span class="m put">PUT</span></td><td><code>/api/projects/:id/env</code></td><td>Read / write <code>.env</code> — <code>{raw}</code> or <code>{pairs:[...]}</code></td></tr>
     <tr><td><span class="m get">GET</span> <span class="m put">PUT</span></td><td><code>/api/projects/:id/compose</code></td><td>Read / write the compose override — <code>{override}</code></td></tr>
+    <tr><td><span class="m get">GET</span></td><td><code>/api/projects/:id/images</code></td><td>List uploaded pre-built images (tag, present?, size)</td></tr>
+    <tr><td><span class="m post">POST</span></td><td><code>/api/projects/:id/image</code></td><td>Upload a <code>docker save</code> tarball (raw body, <code>application/octet-stream</code>) → <code>docker load</code>. Reference the tag in compose (no <code>build:</code>).</td></tr>
+    <tr><td><span class="m post">DELETE</span></td><td><code>/api/projects/:id/image?tag=</code></td><td>Remove an uploaded image (<code>docker rmi</code>) + its record</td></tr>
     <tr><td><span class="m get">GET</span> <span class="m put">PUT</span></td><td><code>/api/projects/:id/routes</code></td><td>Read / write reverse-proxy routes</td></tr>
     <tr><td><span class="m get">GET</span></td><td><code>/api/projects/:id/files</code></td><td>List files (excludes .git/node_modules)</td></tr>
     <tr><td><span class="m get">GET</span> <span class="m put">PUT</span> <span class="m del">DEL</span></td><td><code>/api/projects/:id/file?path=</code></td><td>Read / write / delete one file</td></tr>
@@ -211,6 +214,17 @@
 <span class="tok-m">curl</span> -X POST $BASE/api/projects/&lt;id&gt;/redeploy \
   -H "Authorization: Bearer $KEY"</code></pre>
 
+  <h3>Deploy a locally-built image (no registry)</h3>
+  <pre><code><span class="tok-c"># build + save locally, then stream into `docker load` on the host</span>
+<span class="tok-m">docker</span> build -t myapp:1.0 .
+<span class="tok-m">docker</span> save myapp:1.0 | gzip \
+  | <span class="tok-m">curl</span> -X POST $BASE/api/projects/&lt;id&gt;/image \
+      -H "Authorization: Bearer $KEY" \
+      -H "Content-Type: application/octet-stream" --data-binary @-
+
+<span class="tok-c"># the compose must reference `image: myapp:1.0` with no `build:` — then:</span>
+<span class="tok-m">curl</span> -X POST $BASE/api/projects/&lt;id&gt;/start -H "Authorization: Bearer $KEY"</code></pre>
+
   <h3>Read the last 200 log lines</h3>
   <pre><code><span class="tok-m">curl</span> -s "$BASE/api/projects/&lt;id&gt;/logs?tail=200" \
   -H "Authorization: Bearer $KEY" | jq -r .logs</code></pre>
@@ -230,6 +244,45 @@
     <strong>Errors.</strong> Non-2xx responses return <code>{"error":"…"}</code>.
     <code>401</code> = missing/invalid/revoked key · <code>403</code> = key hit a session-only endpoint (or wrong role/network) ·
     <code>404</code> = not found · <code>409</code> = an operation is already running for that project.
+  </div>
+
+  <h2>6. MCP server (drive it from an AI agent)</h2>
+  <p>
+    The repo ships an <strong>MCP</strong> server (<code>mcp/</code>) that wraps this API, so an agent like Claude can
+    manage projects — and, in particular, <strong>deploy by uploading a locally-built image</strong> — from plain prompts.
+    Its headline tool <code>hormuz_deploy_local_image</code> runs an optional <code>docker build</code>, then
+    <code>docker save</code> + upload into <code>docker load</code> on the host, then restarts the project.
+  </p>
+
+  <p><strong>Install &amp; connect (Claude Code):</strong></p>
+  <pre><code><span class="tok-m">cd</span> mcp &amp;&amp; npm install
+<span class="tok-m">claude</span> mcp add hormuz \
+  -e HORMUZ_URL=$BASE \
+  -e HORMUZ_API_KEY=hormuz_XXXXXXXXXXXX \
+  -- node /absolute/path/to/apphub/mcp/server.js</code></pre>
+
+  <p><strong>Or any MCP client</strong> (Claude Desktop, etc.):</p>
+  <pre><code>{
+  "mcpServers": {
+    "hormuz": {
+      "command": "node",
+      "args": ["/absolute/path/to/apphub/mcp/server.js"],
+      "env": { "HORMUZ_URL": "https://hormuz.qiscus.io", "HORMUZ_API_KEY": "hormuz_XXXX" }
+    }
+  }
+}</code></pre>
+
+  <p>Tools exposed: <code>hormuz_whoami</code>, <code>hormuz_list_projects</code>, <code>hormuz_get_project</code>,
+    <code>hormuz_logs</code>, <code>hormuz_lifecycle</code> (start/stop/restart/rebuild/redeploy),
+    <code>hormuz_list_images</code>, <code>hormuz_upload_image</code>, <code>hormuz_remove_image</code>,
+    <code>hormuz_get_compose</code>, <code>hormuz_set_compose_override</code>, and
+    <code>hormuz_deploy_local_image</code>.</p>
+
+  <div class="callout">
+    <strong>Example prompt.</strong> <em>“Build the image in <code>./service</code> and deploy it to the <strong>myapp</strong> project.”</em>
+    → <code>hormuz_deploy_local_image { project: "myapp", imageTag: "myapp:1.0", buildContext: "./service" }</code>.
+    The build/save tools use the <strong>local</strong> <code>docker</code> CLI, so run the server where the image lives.
+    See <code>mcp/README.md</code> for details.
   </div>
 
   <footer>

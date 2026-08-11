@@ -1,0 +1,19 @@
+{
+  "name": "hormuz-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for the Hormuz Dock API — drive projects and deploy by uploading a locally-built Docker image.",
+  "type": "module",
+  "bin": {
+    "hormuz-mcp": "server.js"
+  },
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}
